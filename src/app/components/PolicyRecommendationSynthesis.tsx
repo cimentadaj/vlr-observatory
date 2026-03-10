@@ -15,8 +15,10 @@ import {
   Legend,
   Cell,
 } from 'recharts';
-import { Layers, TrendingUp, MapPin, Lightbulb, Target } from 'lucide-react';
+import { Layers, TrendingUp, Lightbulb, Target, ChevronDown } from 'lucide-react';
 import { REGIONS, POLICY_CATEGORIES, getSDGName } from './data/constants';
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from './ui/collapsible';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 
 const recommendationTypes = POLICY_CATEGORIES.map(p => p.name);
 const typeColors: Record<string, string> = Object.fromEntries(POLICY_CATEGORIES.map(p => [p.name, p.color]));
@@ -174,6 +176,8 @@ export function PolicyRecommendationSynthesis() {
   } = useMemo(() => generateMockPolicyData(), []);
 
   const [selectedSDG, setSelectedSDG] = useState<number>(11);
+  const [strategicOpen, setStrategicOpen] = useState(true);
+  const [radarRegions, setRadarRegions] = useState<string[]>(['Europe', 'Asia']);
   const [compareRegions, setCompareRegions] = useState<string[]>(['Europe', 'Asia']);
   const [comparisonMode, setComparisonMode] = useState<'regions' | 'sdgs'>('regions');
   const [compareSDGs, setCompareSDGs] = useState<number[]>([3, 11, 13]);
@@ -227,7 +231,7 @@ export function PolicyRecommendationSynthesis() {
 
   return (
     <div className="w-full h-full overflow-auto bg-slate-50">
-      <div className="max-w-[1600px] mx-auto p-8">
+      <div className="max-w-7xl mx-auto p-8">
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-4xl font-bold text-slate-900 mb-2">
@@ -236,71 +240,75 @@ export function PolicyRecommendationSynthesis() {
           <p className="text-lg text-slate-600">
             Analysis of policy directions cities globally are converging around for each SDG
           </p>
-          <p className="text-sm text-slate-500 mt-1 italic">
-            No two regions share the same top policy priority — but Monitoring & Data appears in 6 of 7 regions' top 3.
-          </p>
         </div>
 
         {/* Key Insights Panel */}
-        <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6 mb-6">
-          <h2 className="text-xl font-semibold text-slate-900 mb-4">Strategic Value</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="border-l-4 border-purple-500 pl-4">
-              <div className="flex items-center gap-2 text-purple-700 mb-2">
-                <Layers className="w-5 h-5" />
-                <div className="font-semibold">Global Playbooks</div>
+        <Collapsible open={strategicOpen} onOpenChange={setStrategicOpen}>
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 mb-6">
+            <CollapsibleTrigger className="w-full flex items-center justify-between p-4 cursor-pointer hover:bg-slate-50 rounded-2xl transition-colors">
+              <span className="text-sm font-medium text-slate-600 italic">No two regions share the same top policy priority — but Monitoring & Data appears in 6 of 7 regions' top 3.</span>
+              <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-300 ${strategicOpen ? 'rotate-180' : ''}`} />
+            </CollapsibleTrigger>
+            <CollapsibleContent className="overflow-hidden transition-all duration-300 data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
+              <div className="px-6 pb-6">
+                <h2 className="text-xl font-semibold text-slate-900 mb-4">Strategic Value</h2>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="border-l-4 border-purple-500 pl-4">
+                    <div className="flex items-center gap-2 text-purple-700 mb-2">
+                      <Layers className="w-5 h-5" />
+                      <div className="font-semibold">Global Playbooks</div>
+                    </div>
+                    <div className="text-sm text-slate-600">
+                      Reveals de facto policy convergence patterns emerging from city practice across {sdgs.length} SDGs
+                    </div>
+                  </div>
+                  <div className="border-l-4 border-blue-500 pl-4">
+                    <div className="flex items-center gap-2 text-blue-700 mb-2">
+                      <Target className="w-5 h-5" />
+                      <div className="font-semibold">Operational</div>
+                    </div>
+                    <div className="text-sm text-slate-600">
+                      Direct integration into advisory narratives and implementation guidance
+                    </div>
+                  </div>
+                  <div className="border-l-4 border-green-500 pl-4">
+                    <div className="flex items-center gap-2 text-green-700 mb-2">
+                      <Lightbulb className="w-5 h-5" />
+                      <div className="font-semibold">Advisory Inputs</div>
+                    </div>
+                    <div className="text-sm text-slate-600">
+                      Support evidence-based policy development and implementation guidance for cities
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div className="text-sm text-slate-600">
-                Reveals de facto policy convergence patterns emerging from city practice across {sdgs.length} SDGs
-              </div>
-            </div>
-            <div className="border-l-4 border-blue-500 pl-4">
-              <div className="flex items-center gap-2 text-blue-700 mb-2">
-                <Target className="w-5 h-5" />
-                <div className="font-semibold">Operational</div>
-              </div>
-              <div className="text-sm text-slate-600">
-                Direct integration into advisory narratives and implementation guidance
-              </div>
-            </div>
-            <div className="border-l-4 border-green-500 pl-4">
-              <div className="flex items-center gap-2 text-green-700 mb-2">
-                <Lightbulb className="w-5 h-5" />
-                <div className="font-semibold">Advisory Inputs</div>
-              </div>
-              <div className="text-sm text-slate-600">
-                Support evidence-based policy development and implementation guidance for cities
-              </div>
-            </div>
+            </CollapsibleContent>
           </div>
-        </div>
+        </Collapsible>
 
         {/* SDG Selector */}
-        <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6 mb-6">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6 mb-6">
           <h3 className="text-lg font-semibold text-slate-900 mb-4">Select SDG for Analysis</h3>
-          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-9 gap-3">
-            {sdgs.map(sdgId => (
-              <button
-                key={sdgId}
-                onClick={() => setSelectedSDG(sdgId)}
-                className={`px-4 py-3 rounded-lg text-sm font-medium transition-all ${
-                  selectedSDG === sdgId
-                    ? 'bg-blue-600 text-white shadow-md scale-105'
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                }`}
-              >
-                SDG {sdgId}
-              </button>
-            ))}
-          </div>
+          <Select value={String(selectedSDG)} onValueChange={(v) => setSelectedSDG(Number(v))}>
+            <SelectTrigger className="w-full max-w-md">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {sdgs.map(sdgId => (
+                <SelectItem key={sdgId} value={String(sdgId)}>
+                  SDG {sdgId} — {getSDGName(sdgId)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         {/* Policy Themes for Selected SDG */}
-        <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6 mb-6">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6 mb-6">
           <h3 className="text-lg font-semibold text-slate-900 mb-4">
             Top Global Policy Themes: SDG {selectedSDG} - {getSDGName(selectedSDG)}
           </h3>
-          <div className="space-y-3 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             {policyThemesBySDG[selectedSDG]?.global.map((theme, idx) => (
               <div key={idx} className="flex items-start gap-3 p-3 bg-blue-50 rounded-lg">
                 <div className="flex-shrink-0 w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center font-bold text-sm">
@@ -334,19 +342,29 @@ export function PolicyRecommendationSynthesis() {
 
         {/* Recommendation Type Distribution */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6">
             <h3 className="text-lg font-semibold text-slate-900 mb-4">
-              Recommendation Types by SDG
+              Recommendation Types: SDG {selectedSDG} — {getSDGName(selectedSDG)}
             </h3>
             <ResponsiveContainer width="100%" height={400}>
               <BarChart
-                data={recommendationTypeData.filter(d => [selectedSDG].includes(d.sdg))}
-                margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+                data={recommendationTypes.filter(t => t !== 'Other').map(type => {
+                  const sdgData = recommendationTypeData.find(d => d.sdg === selectedSDG);
+                  return {
+                    type,
+                    shortType: type.split(',')[0].split('&')[0].trim(),
+                    value: sdgData?.[type] || 0,
+                  };
+                })}
+                margin={{ top: 20, right: 30, left: 20, bottom: 80 }}
               >
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                 <XAxis
-                  dataKey="sdg"
-                  label={{ value: 'SDG', position: 'insideBottom', offset: -10 }}
+                  dataKey="shortType"
+                  angle={-35}
+                  textAnchor="end"
+                  height={100}
+                  tick={{ fontSize: 11 }}
                 />
                 <YAxis label={{ value: 'Percentage (%)', angle: -90, position: 'insideLeft' }} />
                 <Tooltip
@@ -355,24 +373,47 @@ export function PolicyRecommendationSynthesis() {
                     border: '1px solid #e2e8f0',
                     borderRadius: '8px'
                   }}
+                  formatter={(value: any, name: any, props: any) => [`${value}%`, props.payload.type]}
                 />
-                <Legend wrapperStyle={{ paddingTop: '20px' }} />
-                {recommendationTypes.map(type => (
-                  <Bar
-                    key={type}
-                    dataKey={type}
-                    stackId="a"
-                    fill={typeColors[type]}
-                  />
-                ))}
+                <Bar dataKey="value" name="Share of Recommendations" radius={[4, 4, 0, 0]}>
+                  {recommendationTypes.filter(t => t !== 'Other').map((type, index) => (
+                    <Cell key={index} fill={typeColors[type]} />
+                  ))}
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>
 
-          <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6">
             <h3 className="text-lg font-semibold text-slate-900 mb-4">
               Regional Policy Focus Distribution
             </h3>
+            <div className="flex flex-wrap gap-2 mb-4">
+              {regions.map((region, idx) => {
+                const colors = ['#3b82f6', '#ec4899', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4', '#ef4444'];
+                return (
+                  <button
+                    key={region}
+                    onClick={() => {
+                      setRadarRegions(prev => {
+                        if (prev.includes(region)) {
+                          return prev.length > 1 ? prev.filter(r => r !== region) : prev;
+                        }
+                        return prev.length >= 3 ? prev : [...prev, region];
+                      });
+                    }}
+                    className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
+                      radarRegions.includes(region)
+                        ? 'text-white'
+                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                    }`}
+                    style={radarRegions.includes(region) ? { backgroundColor: colors[idx % colors.length] } : undefined}
+                  >
+                    {region}
+                  </button>
+                );
+              })}
+            </div>
             <ResponsiveContainer width="100%" height={400}>
               <RadarChart data={regionalComparisonData}>
                 <PolarGrid stroke="#e2e8f0" />
@@ -384,15 +425,15 @@ export function PolicyRecommendationSynthesis() {
                 <PolarRadiusAxis angle={90} domain={[0, 100]} />
                 <Tooltip />
                 <Legend />
-                {regions.map((region, idx) => {
+                {radarRegions.map((region) => {
                   const colors = ['#3b82f6', '#ec4899', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4', '#ef4444'];
                   return (
                     <Radar
                       key={region}
                       name={region}
                       dataKey={region}
-                      stroke={colors[idx]}
-                      fill={colors[idx]}
+                      stroke={colors[regions.indexOf(region) % colors.length]}
+                      fill={colors[regions.indexOf(region) % colors.length]}
                       fillOpacity={0.3}
                     />
                   );
@@ -402,36 +443,8 @@ export function PolicyRecommendationSynthesis() {
           </div>
         </div>
 
-        {/* Regional Variations */}
-        <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6 mb-6">
-          <h3 className="text-lg font-semibold text-slate-900 mb-4">
-            Regional Policy Variations: SDG {selectedSDG}
-          </h3>
-          <p className="text-sm text-slate-600 mb-4">
-            Regional policy themes reveal three governance blocs: regulation-first (Europe, North America), capacity-first (Africa, LATAM), and infrastructure-first (Asia, Middle East).
-          </p>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {regions.map(region => (
-              <div key={region} className="border border-slate-200 rounded-lg p-4 hover:shadow-md transition-shadow">
-                <div className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
-                  <MapPin className="w-4 h-4 text-blue-600" />
-                  {region}
-                </div>
-                <ul className="space-y-2">
-                  {(policyThemesBySDG[selectedSDG]?.regional[region] || []).map((theme, idx) => (
-                    <li key={idx} className="text-sm text-slate-600 flex items-start gap-2">
-                      <span className="text-blue-600 mt-0.5">•</span>
-                      <span>{theme}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-        </div>
-
         {/* Comparison Tool */}
-        <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6">
           <h3 className="text-lg font-semibold text-slate-900 mb-4">Policy Comparison Tool</h3>
 
           {/* Comparison Mode Selector */}
@@ -563,7 +576,7 @@ export function PolicyRecommendationSynthesis() {
             </BarChart>
           </ResponsiveContainer>
 
-          <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg border-l-4 border-blue-500">
             <div className="text-sm text-blue-800">
               <strong>Insight:</strong> {comparisonMode === 'regions' ? (
                 `Comparing ${compareRegions.join(', ')} shows distinct regional priorities in implementing SDG ${selectedSDG}.`

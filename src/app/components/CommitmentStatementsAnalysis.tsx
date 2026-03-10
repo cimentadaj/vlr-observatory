@@ -28,9 +28,13 @@ import {
   Handshake,
   Crosshair,
   MoreHorizontal,
+  ChevronDown,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { REGIONS, COMMITMENT_CATEGORIES, CommitmentId, getSDGName } from './data/constants';
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from './ui/collapsible';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/tabs';
 
 const COMMITMENT_ICON_MAP: Record<CommitmentId, { icon: LucideIcon; shortName: string }> = {
   strategy_plan:            { icon: TrendingUp,    shortName: 'Strategy & Plans' },
@@ -201,6 +205,8 @@ export function CommitmentStatementsAnalysis() {
   const [selectedSDG, setSelectedSDG] = useState<number>(11);
   const [selectedRegion, setSelectedRegion] = useState<string>('All Regions');
   const [radarRegions, setRadarRegions] = useState<string[]>(['Europe', 'Asia', 'Africa']);
+  const [strategicOpen, setStrategicOpen] = useState(true);
+  const [showAllTimeframe, setShowAllTimeframe] = useState(false);
 
   // Get data for selected SDG and Region
   const selectedSDGData = commitmentsBySDGAndRegion[selectedRegion].find(d => d.sdg === selectedSDG);
@@ -216,9 +222,30 @@ export function CommitmentStatementsAnalysis() {
     });
   }, [regionalAmbitionData]);
 
+  const topCommitmentCategories = useMemo(() => {
+    const lastRow = timeframeData[timeframeData.length - 1];
+    return COMMITMENT_CATEGORIES
+      .map(cat => ({ ...cat, value: (lastRow as any)[cat.id] as number }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 4);
+  }, [timeframeData]);
+
+  const timeframeDataWithOthers = useMemo(() => {
+    const topIds = topCommitmentCategories.map(c => c.id);
+    return timeframeData.map(d => {
+      const entry: any = { timeframe: d.timeframe };
+      topIds.forEach(id => { entry[id] = (d as any)[id]; });
+      const othersValue = COMMITMENT_CATEGORIES
+        .filter(c => !topIds.includes(c.id))
+        .reduce((sum, c) => sum + ((d as any)[c.id] || 0), 0);
+      entry['other'] = othersValue;
+      return entry;
+    });
+  }, [timeframeData, topCommitmentCategories]);
+
   return (
     <div className="w-full h-full overflow-auto bg-slate-50">
-      <div className="max-w-[1600px] mx-auto p-8">
+      <div className="max-w-7xl mx-auto p-8">
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-4xl font-bold text-slate-900 mb-2">
@@ -227,72 +254,72 @@ export function CommitmentStatementsAnalysis() {
           <p className="text-lg text-slate-600">
             What are cities actually committing to when they publish a VLR?
           </p>
-          <p className="text-sm text-slate-500 mt-1 italic">
-            11 of 17 SDGs show a Large Gap between challenges and commitments. 53% of commitments are plans about plans.
-          </p>
         </div>
 
         {/* Strategic Value */}
-        <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6 mb-6">
-          <h2 className="text-xl font-semibold text-slate-900 mb-4">Strategic Value</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="border-l-4 border-green-500 pl-4">
-              <div className="flex items-center gap-2 text-green-700 mb-2">
-                <Target className="w-5 h-5" />
-                <div className="font-semibold">Ambition Assessment</div>
+        <Collapsible open={strategicOpen} onOpenChange={setStrategicOpen}>
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6 mb-6">
+            <CollapsibleTrigger className="flex items-center justify-between w-full text-left">
+              <div>
+                <h2 className="text-xl font-semibold text-slate-900">Strategic Value</h2>
+                <p className="text-sm text-slate-500 mt-1">11 of 17 SDGs show a Large Gap between challenges and commitments. 53% of commitments are plans about plans.</p>
               </div>
-              <div className="text-sm text-slate-600">
-                Reveals where ambition is high versus symbolic through specificity and resource analysis
+              <ChevronDown className={`w-5 h-5 text-slate-500 transition-transform ${strategicOpen ? 'rotate-180' : ''}`} />
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-4">
+                <div className="border-l-4 border-green-500 pl-4">
+                  <div className="flex items-center gap-2 text-green-700 mb-2">
+                    <Target className="w-5 h-5" />
+                    <div className="font-semibold">Ambition Assessment</div>
+                  </div>
+                  <div className="text-sm text-slate-600">
+                    Reveals where ambition is high versus symbolic through specificity and resource analysis
+                  </div>
+                </div>
+                <div className="border-l-4 border-orange-500 pl-4">
+                  <div className="flex items-center gap-2 text-orange-700 mb-2">
+                    <AlertCircle className="w-5 h-5" />
+                    <div className="font-semibold">Gap Analysis</div>
+                  </div>
+                  <div className="text-sm text-slate-600">
+                    Compares identified challenges with stated commitments to find implementation gaps
+                  </div>
+                </div>
+                <div className="border-l-4 border-blue-500 pl-4">
+                  <div className="flex items-center gap-2 text-blue-700 mb-2">
+                    <TrendingUp className="w-5 h-5" />
+                    <div className="font-semibold">Foresight Bridge</div>
+                  </div>
+                  <div className="text-sm text-slate-600">
+                    Creates pathway from current state to implementation discussions and accountability
+                  </div>
+                </div>
               </div>
-            </div>
-            <div className="border-l-4 border-orange-500 pl-4">
-              <div className="flex items-center gap-2 text-orange-700 mb-2">
-                <AlertCircle className="w-5 h-5" />
-                <div className="font-semibold">Gap Analysis</div>
-              </div>
-              <div className="text-sm text-slate-600">
-                Compares identified challenges with stated commitments to find implementation gaps
-              </div>
-            </div>
-            <div className="border-l-4 border-blue-500 pl-4">
-              <div className="flex items-center gap-2 text-blue-700 mb-2">
-                <TrendingUp className="w-5 h-5" />
-                <div className="font-semibold">Foresight Bridge</div>
-              </div>
-              <div className="text-sm text-slate-600">
-                Creates pathway from current state to implementation discussions and accountability
-              </div>
-            </div>
+            </CollapsibleContent>
           </div>
-        </div>
-
-        {/* SDG Selector */}
-        <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6 mb-6">
-          <h3 className="text-lg font-semibold text-slate-900 mb-4">Select SDG for Detailed Analysis</h3>
-          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-9 gap-3">
-            {Array.from({ length: 17 }, (_, i) => i + 1).map(sdgId => (
-              <button
-                key={sdgId}
-                onClick={() => setSelectedSDG(sdgId)}
-                className={`px-4 py-3 rounded-lg text-sm font-medium transition-all ${
-                  selectedSDG === sdgId
-                    ? 'bg-blue-600 text-white shadow-md scale-105'
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                }`}
-              >
-                SDG {sdgId}
-              </button>
-            ))}
-          </div>
-        </div>
+        </Collapsible>
 
         {/* Filters */}
-        <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-4 mb-6">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-4 mb-6">
           <div className="flex items-center gap-4 flex-wrap">
             <div className="flex items-center gap-2">
               <Filter className="w-4 h-4 text-slate-600" />
-              <span className="text-sm font-medium text-slate-700">Filter:</span>
+              <span className="text-sm font-medium text-slate-700">Filters:</span>
             </div>
+
+            <Select value={String(selectedSDG)} onValueChange={(v) => setSelectedSDG(Number(v))}>
+              <SelectTrigger className="w-64">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {Array.from({ length: 17 }, (_, i) => i + 1).map(sdgId => (
+                  <SelectItem key={sdgId} value={String(sdgId)}>
+                    SDG {sdgId} — {getSDGName(sdgId)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
             <select
               value={selectedRegion}
@@ -308,7 +335,7 @@ export function CommitmentStatementsAnalysis() {
 
         {/* Challenge-Commitment Gap Analysis */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-          <div className="lg:col-span-2 bg-white rounded-lg shadow-sm border border-slate-200 p-6">
+          <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6">
             <h3 className="text-lg font-semibold text-slate-900 mb-2 flex items-center gap-2">
               <AlertCircle className="w-5 h-5 text-orange-600" />
               Where Are Cities' Commitments Falling Short?
@@ -333,22 +360,27 @@ export function CommitmentStatementsAnalysis() {
                 <Bar dataKey="commitmentIntensity" name="Commitment Intensity" fill="#10b981" />
               </BarChart>
             </ResponsiveContainer>
-            <div className="mt-4 p-4 bg-orange-50 border border-orange-200 rounded-lg">
+            <div className="mt-4 p-4 bg-orange-50 border border-orange-200 rounded-lg border-l-4 border-l-blue-500">
               <div className="text-sm text-orange-800">
                 <strong>Gap Insight:</strong> SDG 13 (Climate Action) shows the largest gap at −37 points, while SDG 11 (Sustainable Cities) is the only goal where commitments exceed challenges. Cities are over-planning where they're comfortable and under-committing where it matters most.
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6">
             <h3 className="text-lg font-semibold text-slate-900 mb-2 flex items-center gap-2">
               <Target className="w-5 h-5 text-purple-600" />
               SDG {selectedSDG} Profile
             </h3>
             <p className="text-sm text-slate-600 mb-4">{getSDGName(selectedSDG)}</p>
 
-            <div className="space-y-4">
-              <div className="border border-slate-200 rounded-lg p-4">
+            <Tabs defaultValue="breakdown">
+              <TabsList className="w-full">
+                <TabsTrigger value="breakdown">Breakdown</TabsTrigger>
+                <TabsTrigger value="ambition">Ambition</TabsTrigger>
+                <TabsTrigger value="gap">Gap</TabsTrigger>
+              </TabsList>
+              <TabsContent value="breakdown">
                 <div className="text-sm font-medium text-slate-700 mb-2">Commitment Breakdown</div>
                 {COMMITMENT_CATEGORIES.map(cat => {
                   const value = selectedSDGData?.[cat.id] || 0;
@@ -368,9 +400,8 @@ export function CommitmentStatementsAnalysis() {
                     </div>
                   );
                 })}
-              </div>
-
-              <div className="border border-slate-200 rounded-lg p-4">
+              </TabsContent>
+              <TabsContent value="ambition">
                 <div className="text-sm font-medium text-slate-700 mb-2">Ambition Metrics</div>
                 <div className="space-y-2">
                   <div className="flex justify-between items-center">
@@ -389,34 +420,35 @@ export function CommitmentStatementsAnalysis() {
                     <span className="font-semibold text-slate-900">{selectedSDGData?.totalCommitments}</span>
                   </div>
                 </div>
-              </div>
-
-              {selectedGapData && (
-                <div className={`border rounded-lg p-4 ${
-                  selectedGapData.gapCategory === 'Large Gap' ? 'border-red-300 bg-red-50' :
-                  selectedGapData.gapCategory === 'Moderate Gap' ? 'border-yellow-300 bg-yellow-50' :
-                  'border-green-300 bg-green-50'
-                }`}>
-                  <div className="text-sm font-medium text-slate-900 mb-2">Challenge-Commitment Gap</div>
-                  <div className={`text-xs font-medium ${
-                    selectedGapData.gapCategory === 'Large Gap' ? 'text-red-700' :
-                    selectedGapData.gapCategory === 'Moderate Gap' ? 'text-yellow-700' :
-                    'text-green-700'
+              </TabsContent>
+              <TabsContent value="gap">
+                {selectedGapData && (
+                  <div className={`rounded-lg p-4 ${
+                    selectedGapData.gapCategory === 'Large Gap' ? 'border-red-300 bg-red-50' :
+                    selectedGapData.gapCategory === 'Moderate Gap' ? 'border-yellow-300 bg-yellow-50' :
+                    'border-green-300 bg-green-50'
                   }`}>
-                    {selectedGapData.gapCategory}
+                    <div className="text-sm font-medium text-slate-900 mb-2">Challenge-Commitment Gap</div>
+                    <div className={`text-xs font-medium ${
+                      selectedGapData.gapCategory === 'Large Gap' ? 'text-red-700' :
+                      selectedGapData.gapCategory === 'Moderate Gap' ? 'text-yellow-700' :
+                      'text-green-700'
+                    }`}>
+                      {selectedGapData.gapCategory}
+                    </div>
+                    <div className="text-xs text-slate-600 mt-2">
+                      Challenges: {selectedGapData.challengeIntensity}% | Commitments: {selectedGapData.commitmentIntensity}%
+                    </div>
                   </div>
-                  <div className="text-xs text-slate-600 mt-2">
-                    Challenges: {selectedGapData.challengeIntensity}% | Commitments: {selectedGapData.commitmentIntensity}%
-                  </div>
-                </div>
-              )}
-            </div>
+                )}
+              </TabsContent>
+            </Tabs>
           </div>
         </div>
 
         {/* Regional Ambition & Timeframe */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6">
             <h3 className="text-lg font-semibold text-slate-900 mb-2 flex items-center gap-2">
               <TrendingUp className="w-5 h-5 text-blue-600" />
               How Do Regions' Strategies Differ?
@@ -472,40 +504,63 @@ export function CommitmentStatementsAnalysis() {
                 })}
               </RadarChart>
             </ResponsiveContainer>
-            <div className="mt-4 text-sm text-slate-600">
+            <div className="mt-4 text-sm text-slate-600 border-l-4 border-blue-500 pl-4">
               <strong>Regional Patterns:</strong> Europe shows stronger data/monitoring commitments,
               while Asia-Pacific focuses on strategies. Africa faces investment commitment challenges
               due to resource constraints.
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
-            <h3 className="text-lg font-semibold text-slate-900 mb-2 flex items-center gap-2">
-              <Calendar className="w-5 h-5 text-purple-600" />
-              How Are Cities Sequencing Their Actions?
-            </h3>
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-purple-600" />
+                How Are Cities Sequencing Their Actions?
+              </h3>
+              <button
+                onClick={() => setShowAllTimeframe(prev => !prev)}
+                className="px-3 py-1 rounded text-xs font-medium transition-colors bg-slate-100 text-slate-700 hover:bg-slate-200"
+              >
+                {showAllTimeframe ? 'Show Top 4' : 'Show All'}
+              </button>
+            </div>
             <p className="text-sm text-slate-600 mb-4">
               When do cities plan to deliver on commitments?
             </p>
             <ResponsiveContainer width="100%" height={350}>
-              <BarChart data={timeframeData} layout="vertical">
+              <BarChart data={showAllTimeframe ? timeframeData : timeframeDataWithOthers} layout="vertical">
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                 <XAxis type="number" domain={[0, 100]} />
                 <YAxis type="category" dataKey="timeframe" width={150} tick={{ fontSize: 11 }} />
                 <Tooltip />
                 <Legend />
-                {COMMITMENT_CATEGORIES.map(cat => (
-                  <Bar
-                    key={cat.id}
-                    dataKey={cat.id}
-                    name={COMMITMENT_ICON_MAP[cat.id].shortName}
-                    stackId="a"
-                    fill={cat.color}
-                  />
-                ))}
+                {showAllTimeframe ? (
+                  COMMITMENT_CATEGORIES.map(cat => (
+                    <Bar
+                      key={cat.id}
+                      dataKey={cat.id}
+                      name={COMMITMENT_ICON_MAP[cat.id].shortName}
+                      stackId="a"
+                      fill={cat.color}
+                    />
+                  ))
+                ) : (
+                  <>
+                    {topCommitmentCategories.map(cat => (
+                      <Bar
+                        key={cat.id}
+                        dataKey={cat.id}
+                        name={COMMITMENT_ICON_MAP[cat.id].shortName}
+                        stackId="a"
+                        fill={cat.color}
+                      />
+                    ))}
+                    <Bar dataKey="other" name="Other" stackId="a" fill="#94a3b8" />
+                  </>
+                )}
               </BarChart>
             </ResponsiveContainer>
-            <div className="mt-4 text-sm text-slate-600">
+            <div className="mt-4 text-sm text-slate-600 border-l-4 border-blue-500 pl-4">
               <strong>Temporal Insight:</strong> Policy reforms cluster in medium-term (3-5 years),
               infrastructure investments in long-term (5+ years), while data improvements show
               more short-term action.

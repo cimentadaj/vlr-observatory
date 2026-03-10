@@ -11,7 +11,9 @@ import {
   LineChart,
   Line,
 } from 'recharts';
-import { Network, Shield, Database, DollarSign, AlertCircle, Clock, Scale, BookOpen, Layers, Puzzle, Flag, MessageCircle, Zap, HeartHandshake, MoreHorizontal } from 'lucide-react';
+import { Network, Shield, Database, DollarSign, AlertCircle, Clock, Scale, BookOpen, Layers, Puzzle, Flag, MessageCircle, Zap, HeartHandshake, MoreHorizontal, ChevronDown } from 'lucide-react';
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from './ui/collapsible';
+import { Tooltip as UITooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 import type { LucideIcon } from 'lucide-react';
 import { REGIONS, CHALLENGE_CATEGORIES, ChallengeId, getSDGName } from './data/constants';
 
@@ -108,7 +110,7 @@ const generateChallengeData = () => {
     CHALLENGE_CATEGORIES.forEach((cat2, j) => {
       if (i < j) {
         const cooccurrence = data.filter(d =>
-          d.challenges[cat1.id] > 50 && d.challenges[cat2.id] > 50
+          d.challenges[cat1.id] > 25 && d.challenges[cat2.id] > 25
         ).length;
         cooccurrenceData.push({
           challenge1: CHALLENGE_ICON_MAP[cat1.id].shortName,
@@ -121,8 +123,11 @@ const generateChallengeData = () => {
   });
 
   const temporalData = [
-    { period: '2015-2020', fiscal_financial: 71, institutional_governance: 30, legal_regulatory: 22, human_capacity: 27, data_monitoring: 36, multilevel_governance: 18, policy_coherence: 14, political_will: 10, stakeholder_engagement: 18, external_shocks: 15, socioeconomic: 20, other_challenge: 4 },
-    { period: '2021-2025', fiscal_financial: 61, institutional_governance: 40, legal_regulatory: 28, human_capacity: 29, data_monitoring: 54, multilevel_governance: 22, policy_coherence: 18, political_will: 14, stakeholder_engagement: 19, external_shocks: 20, socioeconomic: 22, other_challenge: 5 },
+    { period: '2015-2017', fiscal_financial: 75, institutional_governance: 25, legal_regulatory: 18, human_capacity: 24, data_monitoring: 28, multilevel_governance: 14, policy_coherence: 10, political_will: 8, stakeholder_engagement: 15, external_shocks: 12, socioeconomic: 17, other_challenge: 3 },
+    { period: '2017-2019', fiscal_financial: 72, institutional_governance: 28, legal_regulatory: 20, human_capacity: 26, data_monitoring: 33, multilevel_governance: 16, policy_coherence: 12, political_will: 9, stakeholder_engagement: 17, external_shocks: 14, socioeconomic: 19, other_challenge: 4 },
+    { period: '2019-2021', fiscal_financial: 68, institutional_governance: 33, legal_regulatory: 24, human_capacity: 28, data_monitoring: 42, multilevel_governance: 19, policy_coherence: 15, political_will: 11, stakeholder_engagement: 18, external_shocks: 22, socioeconomic: 21, other_challenge: 4 },
+    { period: '2021-2023', fiscal_financial: 63, institutional_governance: 38, legal_regulatory: 27, human_capacity: 30, data_monitoring: 50, multilevel_governance: 21, policy_coherence: 17, political_will: 13, stakeholder_engagement: 19, external_shocks: 19, socioeconomic: 22, other_challenge: 5 },
+    { period: '2023-2025', fiscal_financial: 58, institutional_governance: 44, legal_regulatory: 30, human_capacity: 31, data_monitoring: 58, multilevel_governance: 24, policy_coherence: 20, political_will: 15, stakeholder_engagement: 20, external_shocks: 18, socioeconomic: 23, other_challenge: 5 },
   ];
 
   const severityFrequencyData = CHALLENGE_CATEGORIES.map(cat => {
@@ -184,6 +189,9 @@ export function ChallengesBarriersAnalysis() {
 
   const [selectedChallenge, setSelectedChallenge] = useState<string>('fiscal_financial');
   const [selectedRegion, setSelectedRegion] = useState<string>('All');
+  const [strategicOpen, setStrategicOpen] = useState(true);
+  const [showAllLines, setShowAllLines] = useState(false);
+  const [hoveredSDG, setHoveredSDG] = useState<number | null>(null);
 
   const connectedSDGs = useMemo(() => {
     const threshold = 50;
@@ -204,9 +212,30 @@ export function ChallengesBarriersAnalysis() {
     return { id: cat.id, name: cat.name, color: cat.color, icon: CHALLENGE_ICON_MAP[cat.id as ChallengeId].icon };
   }, [selectedChallenge]);
 
+  const topChallengeCategories = useMemo(() => {
+    const latest = temporalData[temporalData.length - 1];
+    const sorted = CHALLENGE_CATEGORIES
+      .map(cat => ({ ...cat, value: latest[cat.id] as number }))
+      .sort((a, b) => b.value - a.value);
+    return sorted.slice(0, 4);
+  }, [temporalData]);
+
+  const temporalDataWithOthers = useMemo(() => {
+    const topIds = topChallengeCategories.map(c => c.id);
+    return temporalData.map(d => {
+      const entry: any = { period: d.period };
+      topIds.forEach(id => { entry[id] = d[id]; });
+      const othersValue = CHALLENGE_CATEGORIES
+        .filter(c => !topIds.includes(c.id))
+        .reduce((sum, c) => sum + ((d as any)[c.id] || 0), 0) / (CHALLENGE_CATEGORIES.length - 4);
+      entry['others'] = Math.round(othersValue);
+      return entry;
+    });
+  }, [temporalData, topChallengeCategories]);
+
   return (
     <div className="w-full h-full overflow-auto bg-slate-50">
-      <div className="max-w-[1600px] mx-auto p-8">
+      <div className="max-w-7xl mx-auto p-8">
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-4xl font-bold text-slate-900 mb-2">
@@ -215,79 +244,87 @@ export function ChallengesBarriersAnalysis() {
           <p className="text-lg text-slate-600">
             What do cities consistently identify as their main constraints to SDG implementation?
           </p>
-          <p className="text-sm text-slate-500 mt-1 italic">
-            The #1 barrier isn't fiscal — it's governance coordination. And wealthier regions have it worse.
-          </p>
         </div>
 
         {/* Strategic Value */}
-        <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6 mb-6">
-          <h2 className="text-xl font-semibold text-slate-900 mb-4">Strategic Value</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="border-l-4 border-red-500 pl-4">
-              <div className="flex items-center gap-2 text-red-700 mb-2">
-                <AlertCircle className="w-5 h-5" />
-                <div className="font-semibold">Structural Bottlenecks</div>
+        <Collapsible open={strategicOpen} onOpenChange={setStrategicOpen} className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6 mb-6">
+          <CollapsibleTrigger className="flex items-center justify-between w-full">
+            <div>
+              <h2 className="text-xl font-semibold text-slate-900">Strategic Value</h2>
+              <p className="text-sm text-slate-500 mt-1">The #1 barrier isn't fiscal — it's governance coordination. And wealthier regions have it worse.</p>
+            </div>
+            <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform ${strategicOpen ? 'rotate-180' : ''}`} />
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-4">
+              <div className="border-l-4 border-red-500 pl-4">
+                <div className="flex items-center gap-2 text-red-700 mb-2">
+                  <AlertCircle className="w-5 h-5" />
+                  <div className="font-semibold">Structural Bottlenecks</div>
+                </div>
+                <div className="text-sm text-slate-600">
+                  Identifies constraints cities cannot solve alone, requiring system-level interventions
+                </div>
               </div>
-              <div className="text-sm text-slate-600">
-                Identifies constraints cities cannot solve alone, requiring system-level interventions
+              <div className="border-l-4 border-orange-500 pl-4">
+                <div className="flex items-center gap-2 text-orange-700 mb-2">
+                  <DollarSign className="w-5 h-5" />
+                  <div className="font-semibold">Donor Framing</div>
+                </div>
+                <div className="text-sm text-slate-600">
+                  Strong input for shaping donor priorities and resource allocation strategies
+                </div>
+              </div>
+              <div className="border-l-4 border-purple-500 pl-4">
+                <div className="flex items-center gap-2 text-purple-700 mb-2">
+                  <Network className="w-5 h-5" />
+                  <div className="font-semibold">Cross-SDG Patterns</div>
+                </div>
+                <div className="text-sm text-slate-600">
+                  Reveals which barriers are universal vs SDG-specific for targeted solutions
+                </div>
               </div>
             </div>
-            <div className="border-l-4 border-orange-500 pl-4">
-              <div className="flex items-center gap-2 text-orange-700 mb-2">
-                <DollarSign className="w-5 h-5" />
-                <div className="font-semibold">Donor Framing</div>
-              </div>
-              <div className="text-sm text-slate-600">
-                Strong input for shaping donor priorities and resource allocation strategies
-              </div>
-            </div>
-            <div className="border-l-4 border-purple-500 pl-4">
-              <div className="flex items-center gap-2 text-purple-700 mb-2">
-                <Network className="w-5 h-5" />
-                <div className="font-semibold">Cross-SDG Patterns</div>
-              </div>
-              <div className="text-sm text-slate-600">
-                Reveals which barriers are universal vs SDG-specific for targeted solutions
-              </div>
-            </div>
-          </div>
-        </div>
+          </CollapsibleContent>
+        </Collapsible>
 
         {/* Challenge Selector */}
-        <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6 mb-6">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6 mb-6">
           <h3 className="text-lg font-semibold text-slate-900 mb-4">Select Challenge Type</h3>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+          <div className="flex flex-wrap gap-2 items-center">
             {CHALLENGE_CATEGORIES.map(cat => {
               const meta = CHALLENGE_ICON_MAP[cat.id];
               const Icon = meta.icon;
+              const isSelected = selectedChallenge === cat.id;
               return (
-                <button
-                  key={cat.id}
-                  onClick={() => setSelectedChallenge(cat.id)}
-                  className={`p-4 rounded-lg border-2 transition-all ${
-                    selectedChallenge === cat.id
-                      ? 'border-current shadow-lg scale-105'
-                      : 'border-slate-200 hover:border-slate-300'
-                  }`}
-                  style={{
-                    color: selectedChallenge === cat.id ? cat.color : undefined,
-                  }}
-                >
-                  <Icon className="w-8 h-8 mb-2 mx-auto" />
-                  <div className={`text-sm font-medium text-center ${
-                    selectedChallenge === cat.id ? '' : 'text-slate-700'
-                  }`}>
-                    {meta.shortName}
-                  </div>
-                </button>
+                <UITooltip key={cat.id}>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={() => setSelectedChallenge(cat.id)}
+                      className={`flex items-center gap-2 rounded-xl border-2 transition-all ${
+                        isSelected
+                          ? 'border-current shadow-lg px-4 py-2'
+                          : 'border-slate-200 hover:border-slate-300 p-2'
+                      }`}
+                      style={{ color: isSelected ? cat.color : undefined }}
+                    >
+                      <Icon className={isSelected ? 'w-6 h-6' : 'w-5 h-5 text-slate-500'} />
+                      {isSelected && <span className="text-sm font-medium">{meta.shortName}</span>}
+                    </button>
+                  </TooltipTrigger>
+                  {!isSelected && (
+                    <TooltipContent>
+                      <p>{meta.shortName}</p>
+                    </TooltipContent>
+                  )}
+                </UITooltip>
               );
             })}
           </div>
         </div>
 
         {/* Network Visualization */}
-        <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6 mb-6">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6 mb-6">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="text-lg font-semibold text-slate-900">
@@ -329,16 +366,16 @@ export function ChallengesBarriersAnalysis() {
           </div>
 
           <div className="relative">
-            <div className="bg-slate-50 rounded-lg p-8 min-h-[500px] border-2 border-slate-200">
-              <svg width="100%" height="500" className="overflow-visible">
+            <div className="bg-slate-50 rounded-lg p-8 min-h-[650px] border-2 border-slate-200">
+              <svg width="100%" height="650" className="overflow-visible">
                 {/* Draw connections */}
                 {connectedSDGs.map((sdg1, i) =>
                   connectedSDGs.slice(i + 1).map((sdg2) => {
                     const angle1 = (sdg1 - 1) * (2 * Math.PI / 17);
                     const angle2 = (sdg2 - 1) * (2 * Math.PI / 17);
-                    const radius = 180;
-                    const centerX = 400;
-                    const centerY = 250;
+                    const radius = 250;
+                    const centerX = 450;
+                    const centerY = 325;
 
                     const x1 = centerX + radius * Math.cos(angle1 - Math.PI / 2);
                     const y1 = centerY + radius * Math.sin(angle1 - Math.PI / 2);
@@ -363,15 +400,15 @@ export function ChallengesBarriersAnalysis() {
                 {/* Draw SDG nodes */}
                 {Array.from({ length: 17 }, (_, i) => i + 1).map((sdg) => {
                   const angle = (sdg - 1) * (2 * Math.PI / 17);
-                  const radius = 180;
-                  const centerX = 400;
-                  const centerY = 250;
+                  const radius = 250;
+                  const centerX = 450;
+                  const centerY = 325;
                   const x = centerX + radius * Math.cos(angle - Math.PI / 2);
                   const y = centerY + radius * Math.sin(angle - Math.PI / 2);
                   const isConnected = connectedSDGs.includes(sdg);
 
                   return (
-                    <g key={sdg}>
+                    <g key={sdg} onMouseEnter={() => setHoveredSDG(sdg)} onMouseLeave={() => setHoveredSDG(null)}>
                       <circle
                         cx={x}
                         cy={y}
@@ -402,21 +439,34 @@ export function ChallengesBarriersAnalysis() {
                           {getSDGName(sdg)}
                         </text>
                       )}
+                      {hoveredSDG === sdg && (
+                        <foreignObject x={x - 60} y={y - 55} width="120" height="40">
+                          <div className="bg-white border border-slate-300 rounded-lg shadow-lg px-2 py-1 text-center">
+                            <div className="text-xs font-semibold text-slate-900">{getSDGName(sdg)}</div>
+                            <div className="text-xs text-slate-600">
+                              {selectedRegion === 'All'
+                                ? `${data.find(d => d.sdg === sdg)?.challenges[selectedChallenge] || 0}%`
+                                : `${data.find(d => d.sdg === sdg)?.regionalBreakdown[selectedRegion]?.[selectedChallenge] || 0}%`
+                              }
+                            </div>
+                          </div>
+                        </foreignObject>
+                      )}
                     </g>
                   );
                 })}
 
                 {/* Center label */}
-                <text x="400" y="250" textAnchor="middle" className="text-lg font-bold" fill="#1e293b">
+                <text x="450" y="325" textAnchor="middle" className="text-lg font-bold" fill="#1e293b">
                   {selectedChallengeDetails?.name}
                 </text>
-                <text x="400" y="270" textAnchor="middle" className="text-sm" fill="#64748b">
+                <text x="450" y="345" textAnchor="middle" className="text-sm" fill="#64748b">
                   {connectedSDGs.length} SDGs Connected
                 </text>
               </svg>
             </div>
 
-            <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="mt-4 p-4 bg-blue-50 border border-blue-200 border-l-4 border-l-blue-500 rounded-lg">
               <div className="text-sm text-blue-800">
                 <strong>Network Insight:</strong> {connectedSDGs.length} SDGs share high intensity (&gt;50%) of{' '}
                 <strong>{selectedChallengeDetails?.name}</strong> challenges
@@ -430,75 +480,76 @@ export function ChallengesBarriersAnalysis() {
 
         {/* Challenge Co-occurrence Matrix & Temporal Evolution */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6">
             <h3 className="text-lg font-semibold text-slate-900 mb-2 flex items-center gap-2">
               <Network className="w-5 h-5 text-purple-600" />
               Which Challenges Reinforce Each Other?
             </h3>
             <p className="text-sm text-slate-600 mb-4">
-              Which challenges tend to appear together? (Both &gt;50% intensity)
+              Which challenges tend to appear together? (Both &gt;25% intensity)
             </p>
-            <div className="space-y-3">
+            <div className="space-y-2">
               {cooccurrenceData
                 .sort((a, b) => b.cooccurrence - a.cooccurrence)
-                .slice(0, 8)
+                .slice(0, 6)
                 .map((item, idx) => (
-                  <div key={idx} className="border border-slate-200 rounded-lg p-3">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="text-sm font-medium text-slate-900">
-                        {item.challenge1.split(' ')[0]} + {item.challenge2.split(' ')[0]}
-                      </div>
-                      <div className="text-sm font-bold text-purple-600">
-                        {item.cooccurrence}/17 SDGs
-                      </div>
+                  <div key={idx} className="flex items-center gap-3">
+                    <div className="w-40 text-right text-xs font-medium text-slate-700 truncate" title={`${item.challenge1} + ${item.challenge2}`}>
+                      {item.challenge1.split(' ')[0]} + {item.challenge2.split(' ')[0]}
                     </div>
-                    <div className="w-full bg-slate-200 rounded-full h-2">
-                      <div
-                        className="bg-purple-600 h-2 rounded-full"
-                        style={{ width: `${item.percentage}%` }}
-                      />
-                    </div>
-                    <div className="text-xs text-slate-600 mt-1">
-                      {item.percentage}% co-occurrence rate
+                    <div className="flex-1 flex items-center gap-2">
+                      <div className="flex-1 bg-slate-100 rounded-full h-3 overflow-hidden">
+                        <div
+                          className="h-3 rounded-full bg-purple-500"
+                          style={{ width: `${item.percentage}%` }}
+                        />
+                      </div>
+                      <span className="text-xs font-bold text-purple-600 w-16 text-right">{item.cooccurrence}/17</span>
                     </div>
                   </div>
                 ))}
             </div>
-            <div className="mt-4 p-3 bg-purple-50 border border-purple-200 rounded text-sm text-purple-800">
+            <div className="mt-4 p-3 bg-purple-50 border border-purple-200 border-l-4 border-l-purple-500 rounded text-sm text-purple-800">
               <strong>Insight:</strong> Governance + Capacity challenges co-occur in 73% of SDGs,
               suggesting that institutional weakness is the root barrier — not funding alone.
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
-            <h3 className="text-lg font-semibold text-slate-900 mb-2 flex items-center gap-2">
-              <Clock className="w-5 h-5 text-blue-600" />
-              How Are Challenge Patterns Shifting Over Time?
-            </h3>
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+                <Clock className="w-5 h-5 text-blue-600" />
+                How Are Challenge Patterns Shifting Over Time?
+              </h3>
+              <button onClick={() => setShowAllLines(v => !v)} className="text-xs text-blue-600 hover:underline">
+                {showAllLines ? 'Show top 4' : 'Show all'}
+              </button>
+            </div>
             <p className="text-sm text-slate-600 mb-4">
               How have challenge patterns shifted over time?
             </p>
             <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={temporalData}>
+              <LineChart data={showAllLines ? temporalData : temporalDataWithOthers}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                 <XAxis dataKey="period" />
                 <YAxis label={{ value: 'Average Intensity (%)', angle: -90, position: 'insideLeft' }} />
                 <Tooltip />
                 <Legend />
-                {CHALLENGE_CATEGORIES.map(cat => (
-                  <Line
-                    key={cat.id}
-                    type="monotone"
-                    dataKey={cat.id}
-                    name={CHALLENGE_ICON_MAP[cat.id].shortName}
-                    stroke={cat.color}
-                    strokeWidth={2}
-                    dot={{ r: 4 }}
-                  />
-                ))}
+                {showAllLines ? (
+                  CHALLENGE_CATEGORIES.map(cat => (
+                    <Line key={cat.id} type="monotone" dataKey={cat.id} name={CHALLENGE_ICON_MAP[cat.id].shortName} stroke={cat.color} strokeWidth={2} dot={{ r: 4 }} />
+                  ))
+                ) : (
+                  <>
+                    {topChallengeCategories.map(cat => (
+                      <Line key={cat.id} type="monotone" dataKey={cat.id} name={CHALLENGE_ICON_MAP[cat.id].shortName} stroke={cat.color} strokeWidth={2} dot={{ r: 4 }} />
+                    ))}
+                    <Line type="monotone" dataKey="others" name="Others" stroke="#94a3b8" strokeWidth={2} strokeDasharray="5 5" dot={{ r: 3 }} />
+                  </>
+                )}
               </LineChart>
             </ResponsiveContainer>
-            <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded text-sm text-blue-800">
+            <div className="mt-4 p-3 bg-blue-50 border border-blue-200 border-l-4 border-l-blue-500 rounded text-sm text-blue-800">
               <strong>Trend:</strong> Governance barriers overtook financing as the #1 challenge post-2020.
               Data gaps grew 50% while financing constraints dropped 14%, reflecting a structural shift in what holds cities back.
             </div>

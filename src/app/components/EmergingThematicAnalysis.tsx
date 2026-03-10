@@ -11,8 +11,11 @@ import {
   BarChart,
   Bar,
   Legend,
+  AreaChart,
+  Area,
 } from 'recharts';
-import { Sparkles, TrendingUp, Globe, AlertCircle, Filter } from 'lucide-react';
+import { Sparkles, TrendingUp, Globe, AlertCircle, Filter, ChevronDown } from 'lucide-react';
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from './ui/collapsible';
 import { REGIONS } from './data/constants';
 
 // Theme categories with colors
@@ -64,6 +67,12 @@ const generateThematicData = () => {
     { name: 'Community Wealth Building', category: 'finance', baseFrequency: 38, growth: 20, regionStrength: { 'Europe': 1.3, 'LATAM': 1.2, 'North America': 1.1 } },
   ];
 
+  // Regional growth modifiers — regions strong in a theme grow faster there
+  const regionGrowthModifiers: Record<string, number> = {
+    'LATAM': 1.25, 'Africa': 1.30, 'Middle East': 1.15,
+    'Asia': 1.10, 'Europe': 0.85, 'North America': 0.80, 'Australia & Oceania': 0.90,
+  };
+
   // Calculate theme data by region
   const themesByRegion: any = {};
 
@@ -71,14 +80,18 @@ const generateThematicData = () => {
     themesByRegion[region] = baseThemes.map(theme => {
       let frequency = theme.baseFrequency;
       let impact = 40 + (theme.baseFrequency % 40);
+      let growth = theme.growth;
 
       // Apply regional variations
-      if (region !== 'All Regions' && theme.regionStrength[region]) {
-        frequency *= theme.regionStrength[region];
-        impact *= theme.regionStrength[region];
+      if (region !== 'All Regions') {
+        const strength = theme.regionStrength[region] || 0.7;
+        frequency *= strength;
+        impact *= strength;
+        // Growth varies by region: strong regions grow faster, weak regions slower
+        const growthMod = regionGrowthModifiers[region] || 1;
+        growth = Math.round(theme.growth * strength * growthMod);
       }
 
-      // No random jitter
       frequency = Math.round(frequency);
       impact = Math.round(impact);
 
@@ -88,7 +101,7 @@ const generateThematicData = () => {
         categoryName: themeCategories.find(c => c.id === theme.category)?.name || '',
         frequency: Math.max(5, Math.min(100, frequency)),
         impact: Math.max(10, Math.min(95, impact)),
-        growth: theme.growth,
+        growth: Math.max(2, Math.min(60, growth)),
         region,
         // For bubble chart positioning
         x: (theme.baseFrequency * 1.3) % 100,
@@ -144,6 +157,7 @@ export function EmergingThematicAnalysis() {
 
   const [selectedRegion, setSelectedRegion] = useState<string>('All Regions');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [strategicOpen, setStrategicOpen] = useState(true);
 
   // Filter themes based on selections
   const filteredThemes = useMemo(() => {
@@ -177,7 +191,7 @@ export function EmergingThematicAnalysis() {
 
   return (
     <div className="w-full h-full overflow-auto bg-slate-50">
-      <div className="max-w-[1600px] mx-auto p-8">
+      <div className="max-w-7xl mx-auto p-8">
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-4xl font-bold text-slate-900 mb-2">
@@ -186,47 +200,56 @@ export function EmergingThematicAnalysis() {
           <p className="text-lg text-slate-600">
             Bottom-up signals: What themes are emerging organically across VLRs beyond SDG frameworks?
           </p>
-          <p className="text-sm text-slate-500 mt-1 italic">
-            Global South cities are leading the next wave of urban innovation. Emerging themes surpassed traditional policy mentions in 2024.
-          </p>
         </div>
 
         {/* Strategic Value */}
-        <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6 mb-6">
-          <h2 className="text-xl font-semibold text-slate-900 mb-4">Strategic Value</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="border-l-4 border-purple-500 pl-4">
-              <div className="flex items-center gap-2 text-purple-700 mb-2">
-                <Sparkles className="w-5 h-5" />
-                <div className="font-semibold">Early Detection</div>
+        <Collapsible open={strategicOpen} onOpenChange={setStrategicOpen}>
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6 mb-6">
+            <CollapsibleTrigger asChild>
+              <button className="flex items-center justify-between w-full text-left">
+                <div>
+                  <h2 className="text-xl font-semibold text-slate-900">Strategic Value</h2>
+                  <p className="text-sm text-slate-500 mt-1">Global South cities are leading the next wave of urban innovation.</p>
+                </div>
+                <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform ${strategicOpen ? 'rotate-180' : ''}`} />
+              </button>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-4">
+                <div className="border-l-4 border-purple-500 pl-4">
+                  <div className="flex items-center gap-2 text-purple-700 mb-2">
+                    <Sparkles className="w-5 h-5" />
+                    <div className="font-semibold">Early Detection</div>
+                  </div>
+                  <div className="text-sm text-slate-600">
+                    Identify new governance paradigms and policy trends before they become mainstream
+                  </div>
+                </div>
+                <div className="border-l-4 border-blue-500 pl-4">
+                  <div className="flex items-center gap-2 text-blue-700 mb-2">
+                    <Globe className="w-5 h-5" />
+                    <div className="font-semibold">SDG-Agnostic Insights</div>
+                  </div>
+                  <div className="text-sm text-slate-600">
+                    Discover cross-cutting narratives not predefined in SDG logic that cities prioritize
+                  </div>
+                </div>
+                <div className="border-l-4 border-green-500 pl-4">
+                  <div className="flex items-center gap-2 text-green-700 mb-2">
+                    <TrendingUp className="w-5 h-5" />
+                    <div className="font-semibold">Thought Leadership</div>
+                  </div>
+                  <div className="text-sm text-slate-600">
+                    Surface emerging trends for policy makers and establish innovation radar capabilities
+                  </div>
+                </div>
               </div>
-              <div className="text-sm text-slate-600">
-                Identify new governance paradigms and policy trends before they become mainstream
-              </div>
-            </div>
-            <div className="border-l-4 border-blue-500 pl-4">
-              <div className="flex items-center gap-2 text-blue-700 mb-2">
-                <Globe className="w-5 h-5" />
-                <div className="font-semibold">SDG-Agnostic Insights</div>
-              </div>
-              <div className="text-sm text-slate-600">
-                Discover cross-cutting narratives not predefined in SDG logic that cities prioritize
-              </div>
-            </div>
-            <div className="border-l-4 border-green-500 pl-4">
-              <div className="flex items-center gap-2 text-green-700 mb-2">
-                <TrendingUp className="w-5 h-5" />
-                <div className="font-semibold">Thought Leadership</div>
-              </div>
-              <div className="text-sm text-slate-600">
-                Surface emerging trends for policy makers and establish innovation radar capabilities
-              </div>
-            </div>
+            </CollapsibleContent>
           </div>
-        </div>
+        </Collapsible>
 
         {/* Main Visualization: Regional Theme Growth Matrix */}
-        <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6 mb-6">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6 mb-6">
           <div className="mb-4">
             <h3 className="text-xl font-semibold text-slate-900 mb-2 flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-purple-600" />
@@ -246,19 +269,37 @@ export function EmergingThematicAnalysis() {
 
             const displayRegions = regions.filter(r => r !== 'All Regions');
 
-            // Function to get growth intensity color
-            const getGrowthColor = (growth: number) => {
-              if (growth >= 35) return 'bg-green-600';
-              if (growth >= 28) return 'bg-green-500';
-              if (growth >= 22) return 'bg-green-400';
-              if (growth >= 18) return 'bg-blue-400';
-              if (growth >= 12) return 'bg-blue-300';
-              return 'bg-slate-300';
-            };
+            // Collect all frequency values across displayed cells for relative scaling
+            const allFreqs: number[] = [];
+            globalThemes.forEach((gt: any) => {
+              displayRegions.forEach(r => {
+                const rt = themesByRegion[r].find((t: any) => t.name === gt.name);
+                if (rt) allFreqs.push(rt.frequency);
+              });
+            });
+            const maxFreq = Math.max(...allFreqs);
+            const minFreq = Math.min(...allFreqs);
+            const freqRange = maxFreq - minFreq || 1;
 
-            const getGrowthTextColor = (growth: number) => {
-              if (growth >= 22) return 'text-white';
-              return 'text-slate-900';
+            // Returns inline style for background + text based on relative frequency
+            const getCellStyle = (frequency: number, growth: number) => {
+              const t = (frequency - minFreq) / freqRange; // 0 to 1
+              if (t < 0.25) {
+                return { bg: '#f1f5f9', text: '#94a3b8' }; // slate-100 / slate-400
+              }
+              if (t < 0.45) {
+                return { bg: '#e2e8f0', text: '#64748b' }; // slate-200 / slate-500
+              }
+              if (t < 0.65) {
+                return { bg: '#93c5fd', text: '#1e3a8a' }; // blue-300 / blue-900
+              }
+              if (t < 0.80) {
+                return { bg: '#60a5fa', text: '#ffffff' }; // blue-400
+              }
+              if (growth >= 35) {
+                return { bg: '#16a34a', text: '#ffffff' }; // green-600
+              }
+              return { bg: '#3b82f6', text: '#ffffff' }; // blue-500
             };
 
             return (
@@ -309,24 +350,21 @@ export function EmergingThematicAnalysis() {
                             const isHighGrowth = regionTheme.growth > 30;
                             const isHighFrequency = regionTheme.frequency > 70;
 
+                            const cellStyle = getCellStyle(regionTheme.frequency, regionTheme.growth);
+
                             return (
-                              <div key={region} className="flex-1 min-w-[120px] px-2">
+                              <div key={region} className="flex-1 min-w-[120px] px-1">
                                 <div
-                                  className={`
-                                    ${getGrowthColor(regionTheme.growth)}
-                                    rounded-lg p-2 h-full flex flex-col items-center justify-center
-                                    transition-all hover:scale-105 hover:shadow-md cursor-pointer
-                                    relative group
-                                  `}
+                                  className="rounded-lg p-2 h-full flex flex-col items-center justify-center transition-all hover:scale-105 hover:shadow-md cursor-pointer relative"
+                                  style={{ backgroundColor: cellStyle.bg, color: cellStyle.text }}
                                 >
-                                  <div className={`text-lg font-bold ${getGrowthTextColor(regionTheme.growth)}`}>
+                                  <div className="text-lg font-bold">
                                     +{regionTheme.growth}%
                                   </div>
-                                  <div className={`text-[10px] ${getGrowthTextColor(regionTheme.growth)} opacity-80`}>
+                                  <div className="text-[10px] opacity-80">
                                     {regionTheme.frequency}% freq
                                   </div>
 
-                                  {/* Badges for exceptional cases */}
                                   {isHighGrowth && (
                                     <div className="absolute -top-1 -right-1 text-[8px] font-bold bg-green-700 text-white rounded px-1">ACC</div>
                                   )}
@@ -346,22 +384,21 @@ export function EmergingThematicAnalysis() {
                   <div className="mt-6 pt-4 border-t border-slate-200">
                     <div className="flex items-center justify-between flex-wrap gap-4">
                       <div className="flex items-center gap-3 text-xs">
-                        <span className="font-semibold text-slate-700">Growth Rate:</span>
-                        <div className="flex items-center gap-2">
-                          <div className="w-4 h-4 bg-green-600 rounded" />
-                          <span className="text-slate-600">35%+</span>
+                        <span className="font-semibold text-slate-700">Frequency:</span>
+                        <div className="flex items-center gap-1">
+                          <div className="w-4 h-4 rounded" style={{ backgroundColor: '#f1f5f9' }} />
+                          <span className="text-slate-500">Low</span>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <div className="w-4 h-4 bg-green-400 rounded" />
-                          <span className="text-slate-600">22-34%</span>
+                        <div className="flex items-center gap-1">
+                          <div className="w-4 h-4 rounded" style={{ backgroundColor: '#e2e8f0' }} />
+                          <div className="w-4 h-4 rounded" style={{ backgroundColor: '#93c5fd' }} />
+                          <div className="w-4 h-4 rounded" style={{ backgroundColor: '#60a5fa' }} />
+                          <div className="w-4 h-4 rounded" style={{ backgroundColor: '#3b82f6' }} />
+                          <span className="text-slate-500">High</span>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <div className="w-4 h-4 bg-blue-400 rounded" />
-                          <span className="text-slate-600">18-21%</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className="w-4 h-4 bg-slate-300 rounded" />
-                          <span className="text-slate-600">&lt;18%</span>
+                        <div className="flex items-center gap-1 ml-2">
+                          <div className="w-4 h-4 rounded" style={{ backgroundColor: '#16a34a' }} />
+                          <span className="text-slate-500">High + fast growth</span>
                         </div>
                       </div>
                       <div className="flex items-center gap-3 text-xs text-slate-600">
@@ -379,7 +416,7 @@ export function EmergingThematicAnalysis() {
         {/* Secondary Insights */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Top Emerging Themes */}
-          <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6">
             <h3 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
               <TrendingUp className="w-5 h-5 text-green-600" />
               Top Emerging Themes (by Growth Rate)
@@ -407,7 +444,7 @@ export function EmergingThematicAnalysis() {
                 );
               })}
             </div>
-            <div className="mt-6 p-4 bg-slate-50 rounded-lg">
+            <div className="mt-6 p-4 bg-slate-50 rounded-lg border-l-4 border-blue-500">
               <div className="text-xs text-slate-600">
                 <strong>Insight:</strong> 3 of the top 5 fastest-growing themes are led by Global South regions (Africa, LATAM).
                 Innovation and resilience categories dominate, signaling a paradigm shift in urban governance priorities.
@@ -416,29 +453,33 @@ export function EmergingThematicAnalysis() {
           </div>
 
           {/* Temporal Evolution */}
-          <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6">
             <h3 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
               <Globe className="w-5 h-5 text-blue-600" />
               Theme Category Evolution Over Time
             </h3>
             <ResponsiveContainer width="100%" height={320}>
-              <BarChart data={temporalData}>
+              <AreaChart data={temporalData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                 <XAxis dataKey="year" />
                 <YAxis label={{ value: 'Average Frequency', angle: -90, position: 'insideLeft' }} />
                 <Tooltip />
                 <Legend />
                 {themeCategories.map(cat => (
-                  <Bar
+                  <Area
                     key={cat.id}
+                    type="monotone"
                     dataKey={cat.id}
                     name={cat.name}
+                    stackId="1"
+                    stroke={cat.color}
                     fill={cat.color}
+                    fillOpacity={0.6}
                   />
                 ))}
-              </BarChart>
+              </AreaChart>
             </ResponsiveContainer>
-            <div className="mt-4 p-4 bg-slate-50 rounded-lg">
+            <div className="mt-4 p-4 bg-slate-50 rounded-lg border-l-4 border-blue-500">
               <div className="text-xs text-slate-600">
                 <strong>Temporal Insight:</strong> Sharp increases post-2022 in Digital Transformation
                 and Resilience themes reflect COVID-19's lasting impact on urban policy priorities.

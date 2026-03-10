@@ -12,7 +12,8 @@ import {
   Legend,
   Cell
 } from 'recharts';
-import { AlertCircle, TrendingUp, TrendingDown, Filter } from 'lucide-react';
+import { AlertCircle, TrendingUp, TrendingDown, Filter, ChevronDown } from 'lucide-react';
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from './ui/collapsible';
 import { REGIONS, SDG_NAMES, getSDGName } from './data/constants';
 
 // Deterministic base coverage values per SDG
@@ -78,6 +79,9 @@ export function SDGCoverageAnalysis() {
   const [selectedRegion, setSelectedRegion] = useState<string>('All');
   const [selectedPeriod, setSelectedPeriod] = useState<string>('All');
   const [view, setView] = useState<'heatmap' | 'trends'>('heatmap');
+  const [strategicOpen, setStrategicOpen] = useState(false);
+  const [hoveredCell, setHoveredCell] = useState<{region: string, sdg: number} | null>(null);
+  const [hoveredBar, setHoveredBar] = useState<number | null>(null);
 
   // Filter data based on selections
   const filteredData = useMemo(() => {
@@ -216,7 +220,7 @@ export function SDGCoverageAnalysis() {
 
   return (
     <div className="w-full h-full overflow-auto">
-      <div className="max-w-[1600px] mx-auto p-8">
+      <div className="max-w-7xl mx-auto p-8">
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-4xl font-bold text-slate-900 mb-2">
@@ -231,7 +235,7 @@ export function SDGCoverageAnalysis() {
         </div>
 
         {/* Key Insights Panel */}
-        <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6 mb-6">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6 mb-6">
           <h2 className="text-xl font-semibold text-slate-900 mb-4">Key Findings</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="border-l-4 border-green-500 pl-4">
@@ -280,7 +284,7 @@ export function SDGCoverageAnalysis() {
         </div>
 
         {/* Filters */}
-        <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-4 mb-6">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-4 mb-6">
           <div className="flex items-center gap-4 flex-wrap">
             <div className="flex items-center gap-2">
               <Filter className="w-4 h-4 text-slate-600" />
@@ -337,7 +341,7 @@ export function SDGCoverageAnalysis() {
         {/* Main Visualizations */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
           {/* Overall SDG Coverage Bar Chart */}
-          <div className="lg:col-span-1 bg-white rounded-lg shadow-sm border border-slate-200 p-6">
+          <div className="lg:col-span-1 bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6">
             <h3 className="text-lg font-semibold text-slate-900 mb-4">
               SDG Coverage Distribution
             </h3>
@@ -368,6 +372,10 @@ export function SDGCoverageAnalysis() {
                     <Cell
                       key={`cell-${index}`}
                       fill={getHeatmapColor(entry.avgCoverage)}
+                      fillOpacity={hoveredBar !== null && hoveredBar !== index ? 0.3 : 1}
+                      onMouseEnter={() => setHoveredBar(index)}
+                      onMouseLeave={() => setHoveredBar(null)}
+                      style={{ transition: 'fill-opacity 0.15s' }}
                     />
                   ))}
                 </Bar>
@@ -376,7 +384,7 @@ export function SDGCoverageAnalysis() {
           </div>
 
           {/* Conditional View: Heatmap or Trends */}
-          <div className="lg:col-span-2 bg-white rounded-lg shadow-sm border border-slate-200 p-6">
+          <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6">
             {view === 'heatmap' ? (
               <>
                 <h3 className="text-lg font-semibold text-slate-900 mb-4">
@@ -439,9 +447,16 @@ export function SDGCoverageAnalysis() {
                             return (
                               <td
                                 key={`${region}-${sdg.id}`}
-                                className="border border-slate-200 p-2 text-center text-sm font-medium text-white cursor-pointer hover:opacity-80 transition-opacity"
-                                style={{ backgroundColor: getHeatmapColor(coverage) }}
+                                className="border border-slate-200 p-2 text-center text-sm font-medium text-white cursor-pointer transition-opacity duration-150"
+                                style={{
+                                  backgroundColor: getHeatmapColor(coverage),
+                                  opacity: hoveredCell
+                                    ? (hoveredCell.region === region || hoveredCell.sdg === sdg.id ? 1 : 0.4)
+                                    : 1,
+                                }}
                                 title={`${sdg.fullName}: ${coverage}%`}
+                                onMouseEnter={() => setHoveredCell({ region, sdg: sdg.id })}
+                                onMouseLeave={() => setHoveredCell(null)}
                               >
                                 {coverage}%
                               </td>
@@ -522,16 +537,26 @@ export function SDGCoverageAnalysis() {
         </div>
 
         {/* Strategic Value Note */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-          <h3 className="text-lg font-semibold text-blue-900 mb-2">Strategic Value</h3>
-          <ul className="list-disc list-inside space-y-1 text-sm text-blue-800">
-            <li>Identifies global and regional SDG blind spots for targeted intervention</li>
-            <li>Enables evidence-based resource allocation for UN agencies and donors</li>
-            <li>Supports city networks in capacity building for under-reported goals</li>
-            <li>Reveals temporal patterns (e.g., COVID impact, emerging priorities)</li>
-            <li>Facilitates peer learning by highlighting regional expertise areas</li>
-          </ul>
-        </div>
+        <Collapsible open={strategicOpen} onOpenChange={setStrategicOpen}>
+          <div className="bg-blue-50 border border-blue-200 rounded-2xl">
+            <CollapsibleTrigger className="w-full flex items-center justify-between p-4 cursor-pointer hover:bg-blue-100/50 rounded-2xl transition-colors">
+              <span className="text-sm font-medium text-blue-800 italic">Identifies global and regional SDG blind spots for targeted intervention</span>
+              <ChevronDown className={`w-4 h-4 text-blue-600 transition-transform duration-300 ${strategicOpen ? 'rotate-180' : ''}`} />
+            </CollapsibleTrigger>
+            <CollapsibleContent className="overflow-hidden transition-all duration-300 data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
+              <div className="px-6 pb-6">
+                <h3 className="text-lg font-semibold text-blue-900 mb-2">Strategic Value</h3>
+                <ul className="list-disc list-inside space-y-1 text-sm text-blue-800">
+                  <li>Identifies global and regional SDG blind spots for targeted intervention</li>
+                  <li>Enables evidence-based resource allocation for UN agencies and donors</li>
+                  <li>Supports city networks in capacity building for under-reported goals</li>
+                  <li>Reveals temporal patterns (e.g., COVID impact, emerging priorities)</li>
+                  <li>Facilitates peer learning by highlighting regional expertise areas</li>
+                </ul>
+              </div>
+            </CollapsibleContent>
+          </div>
+        </Collapsible>
       </div>
     </div>
   );
