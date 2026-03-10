@@ -15,9 +15,8 @@ import {
   Legend,
   Cell,
 } from 'recharts';
-import { Layers, TrendingUp, Lightbulb, Target, ChevronDown } from 'lucide-react';
+import { TrendingUp } from 'lucide-react';
 import { REGIONS, POLICY_CATEGORIES, getSDGName } from './data/constants';
-import { Collapsible, CollapsibleTrigger, CollapsibleContent } from './ui/collapsible';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 
 const recommendationTypes = POLICY_CATEGORIES.map(p => p.name);
@@ -176,7 +175,6 @@ export function PolicyRecommendationSynthesis() {
   } = useMemo(() => generateMockPolicyData(), []);
 
   const [selectedSDG, setSelectedSDG] = useState<number>(11);
-  const [strategicOpen, setStrategicOpen] = useState(true);
   const [radarRegions, setRadarRegions] = useState<string[]>(['Europe', 'Asia']);
   const [compareRegions, setCompareRegions] = useState<string[]>(['Europe', 'Asia']);
   const [comparisonMode, setComparisonMode] = useState<'regions' | 'sdgs'>('regions');
@@ -241,50 +239,6 @@ export function PolicyRecommendationSynthesis() {
             Analysis of policy directions cities globally are converging around for each SDG
           </p>
         </div>
-
-        {/* Key Insights Panel */}
-        <Collapsible open={strategicOpen} onOpenChange={setStrategicOpen}>
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 mb-6">
-            <CollapsibleTrigger className="w-full flex items-center justify-between p-4 cursor-pointer hover:bg-slate-50 rounded-2xl transition-colors">
-              <span className="text-sm font-medium text-slate-600 italic">No two regions share the same top policy priority — but Monitoring & Data appears in 6 of 7 regions' top 3.</span>
-              <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-300 ${strategicOpen ? 'rotate-180' : ''}`} />
-            </CollapsibleTrigger>
-            <CollapsibleContent className="overflow-hidden transition-all duration-300 data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
-              <div className="px-6 pb-6">
-                <h2 className="text-xl font-semibold text-slate-900 mb-4">Strategic Value</h2>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div className="border-l-4 border-purple-500 pl-4">
-                    <div className="flex items-center gap-2 text-purple-700 mb-2">
-                      <Layers className="w-5 h-5" />
-                      <div className="font-semibold">Global Playbooks</div>
-                    </div>
-                    <div className="text-sm text-slate-600">
-                      Reveals de facto policy convergence patterns emerging from city practice across {sdgs.length} SDGs
-                    </div>
-                  </div>
-                  <div className="border-l-4 border-blue-500 pl-4">
-                    <div className="flex items-center gap-2 text-blue-700 mb-2">
-                      <Target className="w-5 h-5" />
-                      <div className="font-semibold">Operational</div>
-                    </div>
-                    <div className="text-sm text-slate-600">
-                      Direct integration into advisory narratives and implementation guidance
-                    </div>
-                  </div>
-                  <div className="border-l-4 border-green-500 pl-4">
-                    <div className="flex items-center gap-2 text-green-700 mb-2">
-                      <Lightbulb className="w-5 h-5" />
-                      <div className="font-semibold">Advisory Inputs</div>
-                    </div>
-                    <div className="text-sm text-slate-600">
-                      Support evidence-based policy development and implementation guidance for cities
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </CollapsibleContent>
-          </div>
-        </Collapsible>
 
         {/* SDG Selector */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6 mb-6">
