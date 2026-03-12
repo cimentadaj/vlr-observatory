@@ -123,7 +123,7 @@ const generateChallengeData = () => {
     CHALLENGE_CATEGORIES.forEach((cat2, j) => {
       if (i < j) {
         const cooccurrence = data.filter(d =>
-          d.challenges[cat1.id] > 25 && d.challenges[cat2.id] > 25
+          d.challenges[cat1.id] > 40 && d.challenges[cat2.id] > 40
         ).length;
         cooccurrenceData.push({
           challenge1: CHALLENGE_ICON_MAP[cat1.id].shortName,
