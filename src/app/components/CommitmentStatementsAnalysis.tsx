@@ -28,11 +28,9 @@ import {
   Handshake,
   Crosshair,
   MoreHorizontal,
-  ChevronDown,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { REGIONS, COMMITMENT_CATEGORIES, CommitmentId, getSDGName } from './data/constants';
-import { Collapsible, CollapsibleTrigger, CollapsibleContent } from './ui/collapsible';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/tabs';
 
@@ -205,7 +203,7 @@ export function CommitmentStatementsAnalysis() {
   const [selectedSDG, setSelectedSDG] = useState<number>(11);
   const [selectedRegion, setSelectedRegion] = useState<string>('All Regions');
   const [radarRegions, setRadarRegions] = useState<string[]>(['Europe', 'Asia', 'Africa']);
-  const [strategicOpen, setStrategicOpen] = useState(true);
+
   const [showAllTimeframe, setShowAllTimeframe] = useState(false);
 
   // Get data for selected SDG and Region
@@ -255,50 +253,6 @@ export function CommitmentStatementsAnalysis() {
             What are cities actually committing to when they publish a VLR?
           </p>
         </div>
-
-        {/* Strategic Value */}
-        <Collapsible open={strategicOpen} onOpenChange={setStrategicOpen}>
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6 mb-6">
-            <CollapsibleTrigger className="flex items-center justify-between w-full text-left">
-              <div>
-                <h2 className="text-xl font-semibold text-slate-900">Strategic Value</h2>
-                <p className="text-sm text-slate-500 mt-1">11 of 17 SDGs show a Large Gap between challenges and commitments. 53% of commitments are plans about plans.</p>
-              </div>
-              <ChevronDown className={`w-5 h-5 text-slate-500 transition-transform ${strategicOpen ? 'rotate-180' : ''}`} />
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-4">
-                <div className="border-l-4 border-green-500 pl-4">
-                  <div className="flex items-center gap-2 text-green-700 mb-2">
-                    <Target className="w-5 h-5" />
-                    <div className="font-semibold">Ambition Assessment</div>
-                  </div>
-                  <div className="text-sm text-slate-600">
-                    Reveals where ambition is high versus symbolic through specificity and resource analysis
-                  </div>
-                </div>
-                <div className="border-l-4 border-orange-500 pl-4">
-                  <div className="flex items-center gap-2 text-orange-700 mb-2">
-                    <AlertCircle className="w-5 h-5" />
-                    <div className="font-semibold">Gap Analysis</div>
-                  </div>
-                  <div className="text-sm text-slate-600">
-                    Compares identified challenges with stated commitments to find implementation gaps
-                  </div>
-                </div>
-                <div className="border-l-4 border-blue-500 pl-4">
-                  <div className="flex items-center gap-2 text-blue-700 mb-2">
-                    <TrendingUp className="w-5 h-5" />
-                    <div className="font-semibold">Foresight Bridge</div>
-                  </div>
-                  <div className="text-sm text-slate-600">
-                    Creates pathway from current state to implementation discussions and accountability
-                  </div>
-                </div>
-              </div>
-            </CollapsibleContent>
-          </div>
-        </Collapsible>
 
         {/* Filters */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-4 mb-6">
