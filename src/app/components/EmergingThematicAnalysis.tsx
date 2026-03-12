@@ -14,8 +14,7 @@ import {
   AreaChart,
   Area,
 } from 'recharts';
-import { Sparkles, TrendingUp, Globe, AlertCircle, Filter, ChevronDown } from 'lucide-react';
-import { Collapsible, CollapsibleTrigger, CollapsibleContent } from './ui/collapsible';
+import { Sparkles, TrendingUp, Globe } from 'lucide-react';
 import { REGIONS } from './data/constants';
 
 // Theme categories with colors
@@ -159,7 +158,6 @@ export function EmergingThematicAnalysis() {
 
   const [selectedRegion, setSelectedRegion] = useState<string>('All Regions');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [strategicOpen, setStrategicOpen] = useState(true);
 
   // Filter themes based on selections
   const filteredThemes = useMemo(() => {
@@ -203,52 +201,6 @@ export function EmergingThematicAnalysis() {
             Bottom-up signals: What themes are emerging organically across VLRs beyond SDG frameworks?
           </p>
         </div>
-
-        {/* Strategic Value */}
-        <Collapsible open={strategicOpen} onOpenChange={setStrategicOpen}>
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6 mb-6">
-            <CollapsibleTrigger asChild>
-              <button className="flex items-center justify-between w-full text-left">
-                <div>
-                  <h2 className="text-xl font-semibold text-slate-900">Strategic Value</h2>
-                  <p className="text-sm text-slate-500 mt-1">Global South cities are leading the next wave of urban innovation.</p>
-                </div>
-                <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform ${strategicOpen ? 'rotate-180' : ''}`} />
-              </button>
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-4">
-                <div className="border-l-4 border-purple-500 pl-4">
-                  <div className="flex items-center gap-2 text-purple-700 mb-2">
-                    <Sparkles className="w-5 h-5" />
-                    <div className="font-semibold">Early Detection</div>
-                  </div>
-                  <div className="text-sm text-slate-600">
-                    Identify new governance paradigms and policy trends before they become mainstream
-                  </div>
-                </div>
-                <div className="border-l-4 border-blue-500 pl-4">
-                  <div className="flex items-center gap-2 text-blue-700 mb-2">
-                    <Globe className="w-5 h-5" />
-                    <div className="font-semibold">SDG-Agnostic Insights</div>
-                  </div>
-                  <div className="text-sm text-slate-600">
-                    Discover cross-cutting narratives not predefined in SDG logic that cities prioritize
-                  </div>
-                </div>
-                <div className="border-l-4 border-green-500 pl-4">
-                  <div className="flex items-center gap-2 text-green-700 mb-2">
-                    <TrendingUp className="w-5 h-5" />
-                    <div className="font-semibold">Thought Leadership</div>
-                  </div>
-                  <div className="text-sm text-slate-600">
-                    Surface emerging trends for policy makers and establish innovation radar capabilities
-                  </div>
-                </div>
-              </div>
-            </CollapsibleContent>
-          </div>
-        </Collapsible>
 
         {/* Featured Emerging Trends */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
