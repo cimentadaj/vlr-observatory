@@ -1,5 +1,5 @@
 import { Link, Outlet, useLocation } from 'react-router';
-import { BarChart3, FileText, AlertTriangle, Target, Sparkles } from 'lucide-react';
+import { BarChart3, FileText, AlertTriangle, Target } from 'lucide-react';
 
 export function Root() {
   const location = useLocation();
@@ -65,17 +65,7 @@ export function Root() {
               <Target className="w-4 h-4" />
               Commitment Statements
             </Link>
-            <Link
-              to="/emerging-themes"
-              className={`flex items-center gap-2 px-4 py-2 border-b-2 text-sm font-medium transition-colors ${
-                isActive('/emerging-themes')
-                  ? 'text-blue-700 border-blue-600 bg-transparent'
-                  : 'border-transparent text-slate-600 hover:bg-slate-100'
-              }`}
-            >
-              <Sparkles className="w-4 h-4" />
-              Emerging Themes
-            </Link>
+            {/* Emerging Themes temporarily disabled — no DB-backed data yet */}
           </div>
         </div>
       </nav>

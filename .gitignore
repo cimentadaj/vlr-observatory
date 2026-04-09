@@ -4,3 +4,9 @@ dist/
 *.local
 .env
 .env.*
+
+# MCP config (contains DB credentials)
+.mcp.json
+
+# Generated data (rebuilt from DB in CI)
+src/data/generated/

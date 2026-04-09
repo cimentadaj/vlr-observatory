@@ -5,227 +5,162 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
-  Tooltip,
+  Tooltip as RechartsTooltip,
   ResponsiveContainer,
-  RadarChart,
-  PolarGrid,
-  PolarAngleAxis,
-  PolarRadiusAxis,
-  Radar,
-  Legend,
   Cell,
 } from 'recharts';
-import { TrendingUp } from 'lucide-react';
+import { TrendingUp, Quote } from 'lucide-react';
 import { REGIONS, POLICY_CATEGORIES, getSDGName } from './data/constants';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import policyRaw from '@/data/generated/policy-distribution.json';
+import evidenceRaw from '@/data/generated/evidence-quotes.json';
 
 const recommendationTypes = POLICY_CATEGORIES.map(p => p.name);
 const typeColors: Record<string, string> = Object.fromEntries(POLICY_CATEGORIES.map(p => [p.name, p.color]));
+const categoryIdToName: Record<string, string> = Object.fromEntries(POLICY_CATEGORIES.map(p => [p.id, p.name]));
 
-// Deterministic policy base distributions per SDG
-const policyBaseBySDG: Record<number, Record<string, number>> = {
-  1: { 'Information, Awareness & Capacity Building': 18, 'Public Investment & Procurement': 15, 'Economic & Fiscal Instruments': 24, 'Voluntary & Partnership Approaches': 12, 'Strategic Planning & Policy Frameworks': 7, 'Monitoring, Evaluation & Data Systems': 8, 'Regulation & Standards': 12, 'Other': 4 },
-  2: { 'Information, Awareness & Capacity Building': 17, 'Public Investment & Procurement': 19, 'Economic & Fiscal Instruments': 21, 'Voluntary & Partnership Approaches': 11, 'Strategic Planning & Policy Frameworks': 8, 'Monitoring, Evaluation & Data Systems': 8, 'Regulation & Standards': 13, 'Other': 3 },
-  3: { 'Information, Awareness & Capacity Building': 22, 'Public Investment & Procurement': 20, 'Economic & Fiscal Instruments': 13, 'Voluntary & Partnership Approaches': 10, 'Strategic Planning & Policy Frameworks': 11, 'Monitoring, Evaluation & Data Systems': 8, 'Regulation & Standards': 12, 'Other': 4 },
-  4: { 'Information, Awareness & Capacity Building': 27, 'Public Investment & Procurement': 13, 'Economic & Fiscal Instruments': 15, 'Voluntary & Partnership Approaches': 10, 'Strategic Planning & Policy Frameworks': 12, 'Monitoring, Evaluation & Data Systems': 7, 'Regulation & Standards': 12, 'Other': 4 },
-  5: { 'Information, Awareness & Capacity Building': 25, 'Public Investment & Procurement': 8, 'Economic & Fiscal Instruments': 13, 'Voluntary & Partnership Approaches': 15, 'Strategic Planning & Policy Frameworks': 14, 'Monitoring, Evaluation & Data Systems': 9, 'Regulation & Standards': 13, 'Other': 3 },
-  6: { 'Information, Awareness & Capacity Building': 15, 'Public Investment & Procurement': 27, 'Economic & Fiscal Instruments': 17, 'Voluntary & Partnership Approaches': 8, 'Strategic Planning & Policy Frameworks': 10, 'Monitoring, Evaluation & Data Systems': 7, 'Regulation & Standards': 13, 'Other': 3 },
-  7: { 'Information, Awareness & Capacity Building': 12, 'Public Investment & Procurement': 25, 'Economic & Fiscal Instruments': 19, 'Voluntary & Partnership Approaches': 10, 'Strategic Planning & Policy Frameworks': 9, 'Monitoring, Evaluation & Data Systems': 8, 'Regulation & Standards': 14, 'Other': 3 },
-  8: { 'Information, Awareness & Capacity Building': 17, 'Public Investment & Procurement': 15, 'Economic & Fiscal Instruments': 24, 'Voluntary & Partnership Approaches': 11, 'Strategic Planning & Policy Frameworks': 10, 'Monitoring, Evaluation & Data Systems': 7, 'Regulation & Standards': 12, 'Other': 4 },
-  9: { 'Information, Awareness & Capacity Building': 13, 'Public Investment & Procurement': 25, 'Economic & Fiscal Instruments': 15, 'Voluntary & Partnership Approaches': 10, 'Strategic Planning & Policy Frameworks': 8, 'Monitoring, Evaluation & Data Systems': 12, 'Regulation & Standards': 14, 'Other': 3 },
-  10: { 'Information, Awareness & Capacity Building': 24, 'Public Investment & Procurement': 10, 'Economic & Fiscal Instruments': 13, 'Voluntary & Partnership Approaches': 17, 'Strategic Planning & Policy Frameworks': 13, 'Monitoring, Evaluation & Data Systems': 7, 'Regulation & Standards': 12, 'Other': 4 },
-  11: { 'Information, Awareness & Capacity Building': 15, 'Public Investment & Procurement': 22, 'Economic & Fiscal Instruments': 17, 'Voluntary & Partnership Approaches': 12, 'Strategic Planning & Policy Frameworks': 10, 'Monitoring, Evaluation & Data Systems': 8, 'Regulation & Standards': 13, 'Other': 3 },
-  12: { 'Information, Awareness & Capacity Building': 12, 'Public Investment & Procurement': 15, 'Economic & Fiscal Instruments': 13, 'Voluntary & Partnership Approaches': 12, 'Strategic Planning & Policy Frameworks': 15, 'Monitoring, Evaluation & Data Systems': 16, 'Regulation & Standards': 14, 'Other': 3 },
-  13: { 'Information, Awareness & Capacity Building': 13, 'Public Investment & Procurement': 17, 'Economic & Fiscal Instruments': 20, 'Voluntary & Partnership Approaches': 12, 'Strategic Planning & Policy Frameworks': 12, 'Monitoring, Evaluation & Data Systems': 9, 'Regulation & Standards': 13, 'Other': 4 },
-  14: { 'Information, Awareness & Capacity Building': 15, 'Public Investment & Procurement': 13, 'Economic & Fiscal Instruments': 17, 'Voluntary & Partnership Approaches': 13, 'Strategic Planning & Policy Frameworks': 12, 'Monitoring, Evaluation & Data Systems': 13, 'Regulation & Standards': 14, 'Other': 3 },
-  15: { 'Information, Awareness & Capacity Building': 17, 'Public Investment & Procurement': 12, 'Economic & Fiscal Instruments': 15, 'Voluntary & Partnership Approaches': 15, 'Strategic Planning & Policy Frameworks': 13, 'Monitoring, Evaluation & Data Systems': 12, 'Regulation & Standards': 13, 'Other': 3 },
-  16: { 'Information, Awareness & Capacity Building': 24, 'Public Investment & Procurement': 8, 'Economic & Fiscal Instruments': 10, 'Voluntary & Partnership Approaches': 18, 'Strategic Planning & Policy Frameworks': 15, 'Monitoring, Evaluation & Data Systems': 8, 'Regulation & Standards': 13, 'Other': 4 },
-  17: { 'Information, Awareness & Capacity Building': 17, 'Public Investment & Procurement': 10, 'Economic & Fiscal Instruments': 18, 'Voluntary & Partnership Approaches': 18, 'Strategic Planning & Policy Frameworks': 10, 'Monitoring, Evaluation & Data Systems': 10, 'Regulation & Standards': 13, 'Other': 4 },
-};
+const regions = [...REGIONS];
+const sdgs = Array.from({ length: 17 }, (_, i) => i + 1);
 
-// Deterministic regional policy focus for radar chart
-const regionalPolicyFocus: Record<string, Record<string, number>> = {
-  'Information, Awareness & Capacity Building': { 'Europe': 55, 'North America': 52, 'LATAM': 72, 'Africa': 78, 'Middle East': 60, 'Asia': 65, 'Australia & Oceania': 58 },
-  'Public Investment & Procurement': { 'Europe': 62, 'North America': 58, 'LATAM': 55, 'Africa': 48, 'Middle East': 70, 'Asia': 75, 'Australia & Oceania': 50 },
-  'Economic & Fiscal Instruments': { 'Europe': 68, 'North America': 65, 'LATAM': 58, 'Africa': 52, 'Middle East': 72, 'Asia': 60, 'Australia & Oceania': 55 },
-  'Voluntary & Partnership Approaches': { 'Europe': 72, 'North America': 68, 'LATAM': 65, 'Africa': 75, 'Middle East': 55, 'Asia': 62, 'Australia & Oceania': 60 },
-  'Strategic Planning & Policy Frameworks': { 'Europe': 78, 'North America': 72, 'LATAM': 50, 'Africa': 42, 'Middle East': 48, 'Asia': 55, 'Australia & Oceania': 65 },
-  'Monitoring, Evaluation & Data Systems': { 'Europe': 75, 'North America': 70, 'LATAM': 48, 'Africa': 45, 'Middle East': 52, 'Asia': 58, 'Australia & Oceania': 68 },
-  'Regulation & Standards': { 'Europe': 80, 'North America': 72, 'LATAM': 45, 'Africa': 38, 'Middle East': 50, 'Asia': 55, 'Australia & Oceania': 70 },
-  'Other': { 'Europe': 18, 'North America': 15, 'LATAM': 20, 'Africa': 16, 'Middle East': 14, 'Asia': 17, 'Australia & Oceania': 12 },
-};
+const policyData = policyRaw as Array<{ sdgId: number; categoryId: string; region: string; year: number; count: number }>;
+const evidenceData = (evidenceRaw as Array<any>).filter(e => e.itemType === 'Policy');
 
-// Deterministic region multipliers for comparison data
-const regionMultipliers: Record<string, number> = {
-  'Europe': 1.1, 'North America': 1.05, 'LATAM': 0.85, 'Africa': 0.75, 'Middle East': 0.80, 'Asia': 0.90, 'Australia & Oceania': 0.95
-};
-
-// Mock data for policy recommendations
-const generateMockPolicyData = () => {
-  const sdgs = Array.from({ length: 17 }, (_, i) => i + 1);
-  const regions = [...REGIONS];
-
-  // Define policy themes for each SDG with regional variations
-  const policyThemesBySDG: Record<number, { global: string[]; regional: Record<string, string[]> }> = {
-    1: {
-      global: ['Universal basic income programs', 'Social protection expansion', 'Employment guarantee schemes'],
-      regional: {
-        'Europe': ['Digital inclusion initiatives', 'Housing-first policies'],
-        'North America': ['Earned income tax credits', 'Affordable housing programs'],
-        'Asia': ['Microfinance expansion', 'Rural employment programs'],
-        'Africa': ['Cash transfer programs', 'Agricultural support'],
-        'LATAM': ['Conditional cash transfers', 'Food security networks'],
-        'Middle East': ['Social safety nets', 'Youth employment initiatives'],
-        'Australia & Oceania': ['Indigenous economic participation', 'Remote community support']
-      }
-    },
-    3: {
-      global: ['Universal health coverage', 'Digital health infrastructure', 'Mental health services integration'],
-      regional: {
-        'Europe': ['Integrated care models', 'Health data interoperability'],
-        'North America': ['Prescription drug affordability', 'Telehealth expansion'],
-        'Asia': ['Community health workers', 'Telemedicine expansion'],
-        'Africa': ['Primary healthcare strengthening', 'Mobile health solutions'],
-        'LATAM': ['Family health programs', 'Indigenous health services'],
-        'Middle East': ['Healthcare workforce development', 'Pandemic preparedness'],
-        'Australia & Oceania': ['Rural health access', 'Mental health first aid']
-      }
-    },
-    11: {
-      global: ['Smart city infrastructure', 'Public transport expansion', 'Green building standards'],
-      regional: {
-        'Europe': ['Low-emission zones', '15-minute city planning'],
-        'North America': ['Transit-oriented development', 'Zoning reform'],
-        'Asia': ['Mass transit systems', 'Flood resilience measures'],
-        'Africa': ['Informal settlement upgrading', 'Waste management systems'],
-        'LATAM': ['Bus rapid transit', 'Urban green spaces'],
-        'Middle East': ['Water-efficient cities', 'Climate adaptation planning'],
-        'Australia & Oceania': ['Bushfire-resilient planning', 'Coastal adaptation']
-      }
-    },
-    13: {
-      global: ['Carbon pricing mechanisms', 'Renewable energy transition', 'Climate adaptation funds'],
-      regional: {
-        'Europe': ['Net-zero targets', 'Green deal implementation'],
-        'North America': ['Clean energy tax incentives', 'Grid modernization'],
-        'Asia': ['Coal phase-out plans', 'Circular economy policies'],
-        'Africa': ['Climate finance access', 'Ecosystem restoration'],
-        'LATAM': ['Forest conservation', 'Indigenous land rights'],
-        'Middle East': ['Solar energy deployment', 'Water scarcity adaptation'],
-        'Australia & Oceania': ['Reef protection programs', 'Drought resilience planning']
-      }
-    },
-  };
-
-  // Fill in remaining SDGs with generic themes
-  for (let i = 2; i <= 17; i++) {
-    if (!policyThemesBySDG[i]) {
-      policyThemesBySDG[i] = {
-        global: [
-          `Regulatory framework for SDG ${i}`,
-          `Financing mechanisms for SDG ${i}`,
-          `Partnership models for SDG ${i}`
-        ],
-        regional: {}
-      };
-      regions.forEach(region => {
-        policyThemesBySDG[i].regional[region] = [
-          `${region}-specific implementation of SDG ${i}`,
-          `Regional cooperation on SDG ${i}`
-        ];
-      });
-    }
+// Helper: compute percentage distribution from counts
+function computeDistribution(items: Array<{ categoryId: string; count: number }>): Record<string, number> {
+  const totals: Record<string, number> = {};
+  let sum = 0;
+  for (const item of items) {
+    const name = categoryIdToName[item.categoryId];
+    if (!name) continue;
+    totals[name] = (totals[name] || 0) + item.count;
+    sum += item.count;
   }
+  if (sum === 0) return {};
+  const result: Record<string, number> = {};
+  for (const [name, count] of Object.entries(totals)) {
+    result[name] = Math.round((count / sum) * 100);
+  }
+  return result;
+}
 
-  // Generate recommendation type distribution (deterministic)
-  const recommendationTypeData = sdgs.map(sdgId => {
-    const data: any = { sdg: sdgId };
-    const sdgBase = policyBaseBySDG[sdgId];
-    recommendationTypes.forEach(type => {
-      data[type] = sdgBase[type];
-    });
-    return data;
-  });
+const regionShort: Record<string, string> = {
+  'Africa': 'AFR',
+  'Asia': 'ASIA',
+  'Australia & Oceania': 'OCE',
+  'Europe': 'EUR',
+  'LATAM': 'LAT',
+  'Middle East': 'ME',
+  'North America': 'NAM',
+};
 
-  // Generate regional comparison data for radar chart (deterministic)
-  const regionalComparisonData = recommendationTypes.map(type => {
-    const data: any = { type };
-    regions.forEach(region => {
-      data[region] = regionalPolicyFocus[type][region];
-    });
-    return data;
-  });
+// Consistent SDG colors (spread across hue wheel)
+const SDG_COLORS: Record<number, string> = {
+  1: '#e5243b', 2: '#DDA63A', 3: '#4C9F38', 4: '#C5192D', 5: '#FF3A21',
+  6: '#26BDE2', 7: '#FCC30B', 8: '#A21942', 9: '#FD6925', 10: '#DD1367',
+  11: '#FD9D24', 12: '#BF8B2E', 13: '#3F7E44', 14: '#0A97D9', 15: '#56C02B',
+  16: '#00689D', 17: '#19486A',
+};
 
-  return {
-    policyThemesBySDG,
-    recommendationTypeData,
-    regionalComparisonData,
-    regions,
-    sdgs
-  };
+const REGION_COLORS: Record<string, string> = {
+  'Africa': '#e5243b',
+  'Asia': '#FCC30B',
+  'Australia & Oceania': '#26BDE2',
+  'Europe': '#3F7E44',
+  'LATAM': '#FD6925',
+  'Middle East': '#A21942',
+  'North America': '#00689D',
 };
 
 export function PolicyRecommendationSynthesis() {
-  const {
-    policyThemesBySDG,
-    recommendationTypeData,
-    regionalComparisonData,
-    regions,
-    sdgs
-  } = useMemo(() => generateMockPolicyData(), []);
+  const [selectedSDG, setSelectedSDG] = useState<number | null>(11);
+  const [activeRegion, setActiveRegion] = useState<string>('All');
 
-  const [selectedSDG, setSelectedSDG] = useState<number>(11);
-  const [radarRegions, setRadarRegions] = useState<string[]>(['Europe', 'Asia']);
-  const [compareRegions, setCompareRegions] = useState<string[]>(['Europe', 'Asia']);
-  const [comparisonMode, setComparisonMode] = useState<'regions' | 'sdgs'>('regions');
-  const [compareSDGs, setCompareSDGs] = useState<number[]>([3, 11, 13]);
+  // Recommendation type distribution per SDG (bar chart)
+  const recommendationTypeData = useMemo(() => {
+    return sdgs.map(sdgId => {
+      const items = policyData.filter(d => d.sdgId === sdgId);
+      const dist = computeDistribution(items);
+      return { sdg: sdgId, ...dist };
+    });
+  }, []);
+
+  // Scatterplot data: centroids (global avg per SDG) + regional points
+  const scatterData = useMemo(() => {
+    return sdgs.map(sdgId => {
+      const regionalPoints = regions.map(region => {
+        const items = policyData.filter(d => d.sdgId === sdgId && d.region === region);
+        const dist = computeDistribution(items);
+        return {
+          sdgId,
+          region,
+          regionShort: regionShort[region] || region,
+          x: dist['Public Investment & Procurement'] || 0,
+          y: dist['Strategic Planning & Policy Frameworks'] || 0,
+          dominant: Object.entries(dist)
+            .filter(([k]) => k !== 'Other')
+            .sort((a, b) => b[1] - a[1])[0]?.[0] || 'N/A',
+          dominantPct: Object.entries(dist)
+            .filter(([k]) => k !== 'Other')
+            .sort((a, b) => b[1] - a[1])[0]?.[1] || 0,
+        };
+      });
+
+      // Centroid = average across regions
+      const cx = Math.round(regionalPoints.reduce((s, p) => s + p.x, 0) / regionalPoints.length);
+      const cy = Math.round(regionalPoints.reduce((s, p) => s + p.y, 0) / regionalPoints.length);
+
+      // Spread = max distance from centroid (a measure of disagreement)
+      const spread = Math.round(Math.max(...regionalPoints.map(p =>
+        Math.sqrt((p.x - cx) ** 2 + (p.y - cy) ** 2)
+      )));
+
+      return { sdgId, name: getSDGName(sdgId), cx, cy, spread, regionalPoints };
+    });
+  }, []);
+
+  // Evidence quotes for selected SDG — one per country for diversity
+  const topQuotes = useMemo(() => {
+    if (selectedSDG === null) return [];
+    const candidates = evidenceData.filter(e => e.sdgId === selectedSDG);
+    const seen = new Set<string>();
+    const result: typeof candidates = [];
+    for (const q of candidates) {
+      if (result.length >= 3) break;
+      if (seen.has(q.country)) continue;
+      seen.add(q.country);
+      result.push(q);
+    }
+    return result;
+  }, [selectedSDG]);
 
   // Calculate dominant recommendation type for selected SDG
   const dominantType = useMemo(() => {
+    if (selectedSDG === null) return null;
     const sdgData = recommendationTypeData.find(d => d.sdg === selectedSDG);
     if (!sdgData) return null;
 
     let maxType = '';
     let maxValue = 0;
     recommendationTypes.forEach(type => {
-      if (sdgData[type] > maxValue) {
-        maxValue = sdgData[type];
+      const val = (sdgData as any)[type] || 0;
+      if (val > maxValue) {
+        maxValue = val;
         maxType = type;
       }
     });
     return { type: maxType, value: maxValue };
   }, [selectedSDG, recommendationTypeData]);
 
-  // Prepare data for comparison (deterministic)
-  const comparisonData = useMemo(() => {
-    if (comparisonMode === 'regions') {
-      // Compare recommendation types across selected regions for one SDG
-      const sdgData = recommendationTypeData.find(d => d.sdg === selectedSDG);
-      if (!sdgData) return [];
+  const [hoveredSDG, setHoveredSDG] = useState<number | null>(null);
 
-      return recommendationTypes.map(type => {
-        const data: any = { type };
-        const baseValue = sdgData[type];
-        compareRegions.forEach(region => {
-          data[region] = Math.round(baseValue * (regionMultipliers[region] || 0.9));
-        });
-        return data;
-      });
-    } else {
-      // Compare one region across multiple SDGs
-      const region = compareRegions[0] || 'Europe';
-      return compareSDGs.map(sdgId => {
-        const data: any = { sdg: `SDG ${sdgId}` };
-        const sdgBase = policyBaseBySDG[sdgId];
-        recommendationTypes.forEach(type => {
-          if (sdgBase) {
-            data[type] = Math.round(sdgBase[type] * (0.85 + (sdgId % 5) * 0.05));
-          }
-        });
-        return data;
-      });
-    }
-  }, [comparisonMode, selectedSDG, compareRegions, compareSDGs, recommendationTypeData]);
+  // Chart dimensions and scales
+  const chartW = 700, chartH = 460;
+  const margin = { top: 30, right: 30, bottom: 50, left: 60 };
+  const plotW = chartW - margin.left - margin.right;
+  const plotH = chartH - margin.top - margin.bottom;
+  const xDomain = [0, 65] as const;
+  const yDomain = [0, 50] as const;
+  const scaleX = (v: number) => margin.left + ((v - xDomain[0]) / (xDomain[1] - xDomain[0])) * plotW;
+  const scaleY = (v: number) => margin.top + plotH - ((v - yDomain[0]) / (yDomain[1] - yDomain[0])) * plotH;
 
   return (
     <div className="w-full h-full overflow-auto bg-slate-50">
@@ -236,310 +171,284 @@ export function PolicyRecommendationSynthesis() {
             Policy Recommendation Synthesis
           </h1>
           <p className="text-lg text-slate-600">
-            Analysis of policy directions cities globally are converging around for each SDG
+            How do policy approaches cluster across SDGs and regions?
           </p>
         </div>
 
-        {/* SDG Selector */}
+        {/* Scatterplot — SDG policy landscape */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6 mb-6">
-          <h3 className="text-lg font-semibold text-slate-900 mb-4">Select SDG for Analysis</h3>
-          <Select value={String(selectedSDG)} onValueChange={(v) => setSelectedSDG(Number(v))}>
-            <SelectTrigger className="w-full max-w-md">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {sdgs.map(sdgId => (
-                <SelectItem key={sdgId} value={String(sdgId)}>
-                  SDG {sdgId} — {getSDGName(sdgId)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Policy Themes for Selected SDG */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6 mb-6">
-          <h3 className="text-lg font-semibold text-slate-900 mb-4">
-            Top Global Policy Themes: SDG {selectedSDG} - {getSDGName(selectedSDG)}
+          <h3 className="text-lg font-semibold text-slate-900 mb-1">
+            Policy Approach Landscape
           </h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            {policyThemesBySDG[selectedSDG]?.global.map((theme, idx) => (
-              <div key={idx} className="flex items-start gap-3 p-3 bg-blue-50 rounded-lg">
-                <div className="flex-shrink-0 w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center font-bold text-sm">
-                  {idx + 1}
-                </div>
-                <div className="flex-1">
-                  <div className="font-medium text-slate-900">{theme}</div>
-                  <div className="text-sm text-slate-600 mt-1">
-                    Cited in {75 - idx * 12}% of VLRs globally
-                  </div>
-                </div>
-              </div>
+          <p className="text-sm text-slate-500 mb-4">
+            Where an SDG falls shows how cities address it — through direct spending, strategic planning, or softer approaches like partnerships and awareness campaigns.
+          </p>
+
+          {/* Region selector */}
+          <div className="flex flex-wrap gap-2 mb-4">
+            <button
+              onClick={() => setActiveRegion('All')}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all border ${
+                activeRegion === 'All'
+                  ? 'bg-slate-800 text-white border-transparent shadow-sm'
+                  : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
+              }`}
+            >
+              All Regions
+            </button>
+            {regions.map(region => (
+              <button
+                key={region}
+                onClick={() => setActiveRegion(region)}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all border ${
+                  activeRegion === region
+                    ? 'text-white border-transparent shadow-sm'
+                    : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
+                }`}
+                style={activeRegion === region ? { backgroundColor: REGION_COLORS[region] } : undefined}
+              >
+                {region}
+              </button>
             ))}
           </div>
 
-          {dominantType && (
-            <div className="p-4 bg-purple-50 border border-purple-200 rounded-lg">
-              <div className="flex items-center gap-2 mb-2">
-                <TrendingUp className="w-5 h-5 text-purple-600" />
-                <span className="font-semibold text-purple-900">Dominant Recommendation Type</span>
-              </div>
-              <div className="text-sm text-purple-800">
-                <span className="font-bold">{dominantType.type}</span> is the most common recommendation type for this SDG ({dominantType.value}% of recommendations)
-              </div>
-              <div className="text-xs text-slate-600 mt-1">
-                This concentration suggests a structural preference that may need diversification for balanced SDG progress.
-              </div>
-            </div>
-          )}
-        </div>
+          <div className="flex justify-center">
+            <svg
+              viewBox={`0 0 ${chartW} ${chartH}`}
+              className="w-full max-w-3xl"
+              style={{ fontFamily: 'system-ui, sans-serif' }}
+            >
+              {/* Grid lines */}
+              {[0, 10, 20, 30, 40, 50, 60].map(v => (
+                <line key={`xg-${v}`} x1={scaleX(v)} y1={margin.top} x2={scaleX(v)} y2={margin.top + plotH}
+                  stroke="#e2e8f0" strokeDasharray="3 3" />
+              ))}
+              {[0, 10, 20, 30, 40, 50].map(v => (
+                <line key={`yg-${v}`} x1={margin.left} y1={scaleY(v)} x2={margin.left + plotW} y2={scaleY(v)}
+                  stroke="#e2e8f0" strokeDasharray="3 3" />
+              ))}
 
-        {/* Recommendation Type Distribution */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6">
-            <h3 className="text-lg font-semibold text-slate-900 mb-4">
-              Recommendation Types: SDG {selectedSDG} — {getSDGName(selectedSDG)}
-            </h3>
-            <ResponsiveContainer width="100%" height={400}>
-              <BarChart
-                data={recommendationTypes.filter(t => t !== 'Other').map(type => {
-                  const sdgData = recommendationTypeData.find(d => d.sdg === selectedSDG);
-                  return {
-                    type,
-                    shortType: type.split(',')[0].split('&')[0].trim(),
-                    value: sdgData?.[type] || 0,
-                  };
-                })}
-                margin={{ top: 20, right: 30, left: 20, bottom: 80 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis
-                  dataKey="shortType"
-                  angle={-35}
-                  textAnchor="end"
-                  height={100}
-                  tick={{ fontSize: 11 }}
-                />
-                <YAxis label={{ value: 'Percentage (%)', angle: -90, position: 'insideLeft' }} />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                    border: '1px solid #e2e8f0',
-                    borderRadius: '8px'
-                  }}
-                  formatter={(value: any, name: any, props: any) => [`${value}%`, props.payload.type]}
-                />
-                <Bar dataKey="value" name="Share of Recommendations" radius={[4, 4, 0, 0]}>
-                  {recommendationTypes.filter(t => t !== 'Other').map((type, index) => (
-                    <Cell key={index} fill={typeColors[type]} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6">
-            <h3 className="text-lg font-semibold text-slate-900 mb-4">
-              Regional Policy Focus Distribution
-            </h3>
-            <div className="flex flex-wrap gap-2 mb-4">
-              {regions.map((region, idx) => {
-                const colors = ['#3b82f6', '#ec4899', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4', '#ef4444'];
+              {/* Quadrant dividers at median values */}
+              {(() => {
+                const xs = scatterData.map(s => s.cx).sort((a, b) => a - b);
+                const ys = scatterData.map(s => s.cy).sort((a, b) => a - b);
+                const medX = xs[Math.floor(xs.length / 2)];
+                const medY = ys[Math.floor(ys.length / 2)];
                 return (
-                  <button
-                    key={region}
-                    onClick={() => {
-                      setRadarRegions(prev => {
-                        if (prev.includes(region)) {
-                          return prev.length > 1 ? prev.filter(r => r !== region) : prev;
-                        }
-                        return prev.length >= 3 ? prev : [...prev, region];
-                      });
-                    }}
-                    className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
-                      radarRegions.includes(region)
-                        ? 'text-white'
-                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                    }`}
-                    style={radarRegions.includes(region) ? { backgroundColor: colors[idx % colors.length] } : undefined}
+                  <>
+                    <line x1={scaleX(medX)} y1={margin.top} x2={scaleX(medX)} y2={margin.top + plotH}
+                      stroke="#94a3b8" strokeWidth={1} strokeDasharray="6 4" opacity={0.6} />
+                    <line x1={margin.left} y1={scaleY(medY)} x2={margin.left + plotW} y2={scaleY(medY)}
+                      stroke="#94a3b8" strokeWidth={1} strokeDasharray="6 4" opacity={0.6} />
+                    <text x={margin.left + 4} y={margin.top + plotH - 4} textAnchor="start"
+                      fontSize={11} fill="#94a3b8" fontWeight={500}>Engagement &amp; Partnership-led</text>
+                    <text x={margin.left + plotW - 4} y={margin.top + plotH - 4} textAnchor="end"
+                      fontSize={11} fill="#94a3b8" fontWeight={500}>Investment-led</text>
+                    <text x={margin.left + plotW - 4} y={margin.top + 14} textAnchor="end"
+                      fontSize={11} fill="#94a3b8" fontWeight={500}>Comprehensive</text>
+                    <text x={margin.left + 4} y={margin.top + 14} textAnchor="start"
+                      fontSize={11} fill="#94a3b8" fontWeight={500}>Planning-led</text>
+                  </>
+                );
+              })()}
+
+              {/* Axes */}
+              <line x1={margin.left} y1={margin.top + plotH} x2={margin.left + plotW} y2={margin.top + plotH} stroke="#94a3b8" />
+              <line x1={margin.left} y1={margin.top} x2={margin.left} y2={margin.top + plotH} stroke="#94a3b8" />
+
+              {/* X tick labels */}
+              {[0, 10, 20, 30, 40, 50, 60].map(v => (
+                <text key={`xt-${v}`} x={scaleX(v)} y={margin.top + plotH + 18} textAnchor="middle"
+                  fontSize={10} fill="#64748b">{v}%</text>
+              ))}
+              {/* Y tick labels */}
+              {[0, 10, 20, 30, 40, 50].map(v => (
+                <text key={`yt-${v}`} x={margin.left - 8} y={scaleY(v) + 4} textAnchor="end"
+                  fontSize={10} fill="#64748b">{v}%</text>
+              ))}
+
+              {/* Axis labels */}
+              <text x={margin.left + plotW / 2} y={chartH - 5} textAnchor="middle"
+                fontSize={12} fill="#475569">Direct Investment →</text>
+              <text x={15} y={margin.top + plotH / 2} textAnchor="middle"
+                fontSize={12} fill="#475569" transform={`rotate(-90, 15, ${margin.top + plotH / 2})`}>Strategic Planning →</text>
+
+              {/* Centroid dots — shown in "All Regions" mode */}
+              {activeRegion === 'All' && scatterData.map(sdg => {
+                const isSelected = selectedSDG === sdg.sdgId;
+                const isHovered = hoveredSDG === sdg.sdgId;
+                const r = isSelected ? 20 : isHovered ? 18 : 15;
+                return (
+                  <g
+                    key={sdg.sdgId}
+                    style={{ cursor: 'pointer' }}
+                    onClick={() => setSelectedSDG(isSelected ? null : sdg.sdgId)}
+                    onMouseEnter={() => setHoveredSDG(sdg.sdgId)}
+                    onMouseLeave={() => setHoveredSDG(null)}
                   >
-                    {region}
-                  </button>
+                    <circle
+                      cx={scaleX(sdg.cx)} cy={scaleY(sdg.cy)} r={r}
+                      fill={SDG_COLORS[sdg.sdgId]}
+                      stroke={isSelected ? '#1e293b' : 'white'}
+                      strokeWidth={isSelected ? 2.5 : 1.5}
+                    />
+                    <text
+                      x={scaleX(sdg.cx)} y={scaleY(sdg.cy) + 1}
+                      textAnchor="middle" dominantBaseline="middle"
+                      fontSize={isSelected ? 11 : 10} fontWeight={700} fill="white"
+                    >
+                      {sdg.sdgId}
+                    </text>
+                  </g>
                 );
               })}
-            </div>
-            <ResponsiveContainer width="100%" height={400}>
-              <RadarChart data={regionalComparisonData}>
-                <PolarGrid stroke="#e2e8f0" />
-                <PolarAngleAxis
-                  dataKey="type"
-                  tick={{ fontSize: 10 }}
-                  tickFormatter={(v: string) => v.split(',')[0].split('&')[0].trim()}
-                />
-                <PolarRadiusAxis angle={90} domain={[0, 100]} />
-                <Tooltip />
-                <Legend />
-                {radarRegions.map((region) => {
-                  const colors = ['#3b82f6', '#ec4899', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4', '#ef4444'];
+
+              {/* Region view: show that region's dots with SDG colors */}
+              {activeRegion !== 'All' && (() => {
+                const region = activeRegion;
+                return scatterData.map(sdg => {
+                  const p = sdg.regionalPoints.find(rp => rp.region === region);
+                  if (!p) return null;
+                  const isSelected = selectedSDG === sdg.sdgId;
+                  const isHovered = hoveredSDG === sdg.sdgId;
+                  const r = isSelected ? 20 : isHovered ? 18 : 15;
                   return (
-                    <Radar
-                      key={region}
-                      name={region}
-                      dataKey={region}
-                      stroke={colors[regions.indexOf(region) % colors.length]}
-                      fill={colors[regions.indexOf(region) % colors.length]}
-                      fillOpacity={0.3}
-                    />
+                    <g
+                      key={`reg-${sdg.sdgId}`}
+                      style={{ cursor: 'pointer' }}
+                      onClick={() => setSelectedSDG(isSelected ? null : sdg.sdgId)}
+                      onMouseEnter={() => setHoveredSDG(sdg.sdgId)}
+                      onMouseLeave={() => setHoveredSDG(null)}
+                    >
+                      <circle
+                        cx={scaleX(p.x)} cy={scaleY(p.y)} r={r}
+                        fill={SDG_COLORS[sdg.sdgId]}
+                        stroke={isSelected ? '#1e293b' : 'white'}
+                        strokeWidth={isSelected ? 2.5 : 1.5}
+                      />
+                      <text
+                        x={scaleX(p.x)} y={scaleY(p.y) + 1}
+                        textAnchor="middle" dominantBaseline="middle"
+                        fontSize={isSelected ? 11 : 10} fontWeight={700} fill="white"
+                      >
+                        {sdg.sdgId}
+                      </text>
+                    </g>
                   );
-                })}
-              </RadarChart>
-            </ResponsiveContainer>
+                });
+              })()}
+
+              {/* Hover tooltip */}
+              {hoveredSDG !== null && (() => {
+                const sdg = scatterData.find(s => s.sdgId === hoveredSDG)!;
+                const tx = scaleX(sdg.cx);
+                const ty = scaleY(sdg.cy) - 24;
+                return (
+                  <g pointerEvents="none">
+                    <rect x={tx - 75} y={ty - 28} width={150} height={26} rx={4}
+                      fill="white" stroke="#e2e8f0" />
+                    <text x={tx} y={ty - 12} textAnchor="middle" fontSize={10} fill="#1e293b" fontWeight={600}>
+                      SDG {sdg.sdgId} — {sdg.name.length > 20 ? sdg.name.slice(0, 20) + '…' : sdg.name}
+                    </text>
+                  </g>
+                );
+              })()}
+            </svg>
           </div>
+
+          <p className="mt-3 text-xs text-slate-400 text-center">
+            Click any SDG circle to see its full policy breakdown and evidence quotes below.
+          </p>
         </div>
 
-        {/* Comparison Tool */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6">
-          <h3 className="text-lg font-semibold text-slate-900 mb-4">Policy Comparison Tool</h3>
-
-          {/* Comparison Mode Selector */}
-          <div className="flex gap-4 mb-6">
-            <button
-              onClick={() => setComparisonMode('regions')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                comparisonMode === 'regions'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-              }`}
-            >
-              Compare Regions for One SDG
-            </button>
-            <button
-              onClick={() => setComparisonMode('sdgs')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                comparisonMode === 'sdgs'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-              }`}
-            >
-              Compare SDGs for One Region
-            </button>
-          </div>
-
-          {/* Region/SDG Selectors */}
-          {comparisonMode === 'regions' ? (
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Select Regions to Compare (for SDG {selectedSDG}):
-              </label>
-              <div className="flex flex-wrap gap-2">
-                {regions.map(region => (
-                  <button
-                    key={region}
-                    onClick={() => {
-                      setCompareRegions(prev =>
-                        prev.includes(region)
-                          ? prev.filter(r => r !== region)
-                          : [...prev, region]
-                      );
-                    }}
-                    className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
-                      compareRegions.includes(region)
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                    }`}
-                  >
-                    {region}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Select SDGs to Compare (for {compareRegions[0] || 'Europe'}):
-              </label>
-              <div className="flex flex-wrap gap-2">
-                {sdgs.map(sdgId => (
-                  <button
-                    key={sdgId}
-                    onClick={() => {
-                      setCompareSDGs(prev =>
-                        prev.includes(sdgId)
-                          ? prev.filter(s => s !== sdgId)
-                          : [...prev, sdgId]
-                      );
-                    }}
-                    className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
-                      compareSDGs.includes(sdgId)
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                    }`}
-                  >
-                    SDG {sdgId}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Comparison Chart */}
-          <ResponsiveContainer width="100%" height={400}>
-            <BarChart
-              data={comparisonData}
-              margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              <XAxis
-                dataKey={comparisonMode === 'regions' ? 'type' : 'sdg'}
-                angle={-45}
-                textAnchor="end"
-                height={100}
-                tick={{ fontSize: 10 }}
-                tickFormatter={comparisonMode === 'regions' ? (v: string) => v.split(',')[0].split('&')[0].trim() : undefined}
-              />
-              <YAxis label={{ value: 'Percentage (%)', angle: -90, position: 'insideLeft' }} />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                  border: '1px solid #e2e8f0',
-                  borderRadius: '8px'
-                }}
-              />
-              <Legend />
-              {comparisonMode === 'regions' ? (
-                compareRegions.map((region, idx) => {
-                  const colors = ['#3b82f6', '#ec4899', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4', '#ef4444'];
-                  return (
-                    <Bar
-                      key={region}
-                      dataKey={region}
-                      fill={colors[idx % colors.length]}
-                    />
-                  );
-                })
-              ) : (
-                recommendationTypes.map(type => (
-                  <Bar
-                    key={type}
-                    dataKey={type}
-                    stackId="a"
-                    fill={typeColors[type]}
+        {/* Detail section for selected SDG */}
+        {selectedSDG !== null && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            {/* Left: Bar chart — absolute distribution for selected SDG */}
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6">
+              <h3 className="text-lg font-semibold text-slate-900 mb-1">
+                Policy Mix: SDG {selectedSDG} — {getSDGName(selectedSDG)}
+              </h3>
+              <p className="text-sm text-slate-500 mb-4">
+                Out of all policy actions extracted from VLR documents for this SDG, what share falls into each category? Each bar shows the percentage of total policy mentions that belong to that type of intervention — from direct spending to awareness campaigns.
+              </p>
+              <ResponsiveContainer width="100%" height={350}>
+                <BarChart
+                  data={recommendationTypes.filter(t => t !== 'Other').map(type => {
+                    const sdgData = recommendationTypeData.find(d => d.sdg === selectedSDG);
+                    return {
+                      type,
+                      shortType: type.split(',')[0].split('&')[0].trim(),
+                      value: (sdgData as any)?.[type] || 0,
+                    };
+                  })}
+                  margin={{ top: 20, right: 30, left: 20, bottom: 80 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis
+                    dataKey="shortType"
+                    angle={-35}
+                    textAnchor="end"
+                    height={100}
+                    tick={{ fontSize: 11 }}
                   />
-                ))
-              )}
-            </BarChart>
-          </ResponsiveContainer>
+                  <YAxis label={{ value: 'Percentage (%)', angle: -90, position: 'insideLeft' }} />
+                  <RechartsTooltip
+                    contentStyle={{
+                      backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '8px'
+                    }}
+                    formatter={(value: any, _name: any, props: any) => [`${value}%`, props.payload.type]}
+                  />
+                  <Bar dataKey="value" name="Share of Recommendations" radius={[4, 4, 0, 0]}>
+                    {recommendationTypes.filter(t => t !== 'Other').map((type, index) => (
+                      <Cell key={index} fill={typeColors[type]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
 
-          <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg border-l-4 border-blue-500">
-            <div className="text-sm text-blue-800">
-              <strong>Insight:</strong> {comparisonMode === 'regions' ? (
-                `Comparing ${compareRegions.join(', ')} shows distinct regional priorities in implementing SDG ${selectedSDG}.`
+              {dominantType && (
+                <div className="mt-4 p-4 bg-purple-50 border border-purple-200 rounded-lg">
+                  <div className="flex items-center gap-2 mb-1">
+                    <TrendingUp className="w-4 h-4 text-purple-600" />
+                    <span className="font-semibold text-sm text-purple-900">Dominant Type</span>
+                  </div>
+                  <div className="text-sm text-purple-800">
+                    <span className="font-bold">{dominantType.type}</span> — {dominantType.value}% of recommendations
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Right: Evidence quotes */}
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6">
+              <h3 className="text-lg font-semibold text-slate-900 mb-4">
+                Policy Examples: SDG {selectedSDG} — {getSDGName(selectedSDG)}
+              </h3>
+              {topQuotes.length > 0 ? (
+                <div className="space-y-4">
+                  {topQuotes.map((q, idx) => (
+                    <div key={idx} className="flex items-start gap-3 p-4 bg-blue-50 rounded-lg">
+                      <Quote className="flex-shrink-0 w-5 h-5 text-blue-400 mt-0.5" />
+                      <div className="flex-1">
+                        <div className="text-sm text-slate-900 italic leading-relaxed">
+                          "{q.quote}"
+                        </div>
+                        <div className="text-xs text-slate-500 mt-2">
+                          {q.city}, {q.country} ({q.year}) — {categoryIdToName[q.categoryId] || q.categoryId}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               ) : (
-                `Comparing SDGs ${compareSDGs.join(', ')} in ${compareRegions[0] || 'Europe'} reveals cross-sectoral policy patterns.`
+                <p className="text-sm text-slate-500 italic">No high-confidence evidence quotes available for this SDG.</p>
               )}
             </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

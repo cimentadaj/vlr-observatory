@@ -7,12 +7,7 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Legend,
-  RadarChart,
-  PolarGrid,
-  PolarAngleAxis,
-  PolarRadiusAxis,
-  Radar,
+  Cell,
 } from 'recharts';
 import {
   Target,
@@ -21,7 +16,6 @@ import {
   Building,
   Database,
   AlertCircle,
-  Calendar,
   Filter,
   Scroll,
   Rocket,
@@ -31,8 +25,10 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { REGIONS, COMMITMENT_CATEGORIES, CommitmentId, getSDGName } from './data/constants';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+// Select removed — SDG selection now via bar chart click
 import { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/tabs';
+import commitmentRaw from '@/data/generated/commitment-distribution.json';
+import challengeRaw from '@/data/generated/challenge-distribution.json';
 
 const COMMITMENT_ICON_MAP: Record<CommitmentId, { icon: LucideIcon; shortName: string }> = {
   strategy_plan:            { icon: TrendingUp,    shortName: 'Strategy & Plans' },
@@ -46,200 +42,93 @@ const COMMITMENT_ICON_MAP: Record<CommitmentId, { icon: LucideIcon; shortName: s
   other_commitment:         { icon: MoreHorizontal,shortName: 'Other' },
 };
 
-// Generate commitment data
-const generateCommitmentData = () => {
-  const sdgs = Array.from({ length: 17 }, (_, i) => i + 1);
-  const regions = ['All Regions', ...REGIONS];
+// Commitment quality tiers
+const ASPIRATIONAL_IDS = ['target_goal', 'strategy_plan'];
+const OPERATIONAL_IDS = ['programme_service', 'partnership_collaboration', 'institutional_capacity', 'data_reporting'];
+const STRUCTURAL_IDS = ['capital_investment', 'regulatory_reform'];
 
-  const commitmentBaseBySDG: Record<number, Record<string, number>> = {
-    1:  { strategy_plan: 18, regulatory_reform: 14, capital_investment: 12, programme_service: 13, institutional_capacity: 9, data_reporting: 8, partnership_collaboration: 8, target_goal: 12, other_commitment: 3 },
-    2:  { strategy_plan: 15, regulatory_reform: 12, capital_investment: 15, programme_service: 12, institutional_capacity: 7, data_reporting: 10, partnership_collaboration: 7, target_goal: 10, other_commitment: 3 },
-    3:  { strategy_plan: 20, regulatory_reform: 15, capital_investment: 10, programme_service: 15, institutional_capacity: 7, data_reporting: 8, partnership_collaboration: 7, target_goal: 13, other_commitment: 2 },
-    4:  { strategy_plan: 16, regulatory_reform: 13, capital_investment: 12, programme_service: 13, institutional_capacity: 11, data_reporting: 10, partnership_collaboration: 9, target_goal: 12, other_commitment: 3 },
-    5:  { strategy_plan: 14, regulatory_reform: 11, capital_investment: 8, programme_service: 10, institutional_capacity: 13, data_reporting: 12, partnership_collaboration: 11, target_goal: 10, other_commitment: 4 },
-    6:  { strategy_plan: 12, regulatory_reform: 10, capital_investment: 28, programme_service: 10, institutional_capacity: 7, data_reporting: 10, partnership_collaboration: 7, target_goal: 8, other_commitment: 3 },
-    7:  { strategy_plan: 11, regulatory_reform: 9, capital_investment: 30, programme_service: 11, institutional_capacity: 6, data_reporting: 12, partnership_collaboration: 5, target_goal: 9, other_commitment: 3 },
-    8:  { strategy_plan: 15, regulatory_reform: 12, capital_investment: 15, programme_service: 12, institutional_capacity: 9, data_reporting: 8, partnership_collaboration: 8, target_goal: 10, other_commitment: 3 },
-    9:  { strategy_plan: 12, regulatory_reform: 10, capital_investment: 25, programme_service: 11, institutional_capacity: 7, data_reporting: 15, partnership_collaboration: 7, target_goal: 9, other_commitment: 3 },
-    10: { strategy_plan: 16, regulatory_reform: 13, capital_investment: 10, programme_service: 12, institutional_capacity: 12, data_reporting: 10, partnership_collaboration: 10, target_goal: 10, other_commitment: 4 },
-    11: { strategy_plan: 18, regulatory_reform: 14, capital_investment: 22, programme_service: 13, institutional_capacity: 9, data_reporting: 12, partnership_collaboration: 8, target_goal: 12, other_commitment: 2 },
-    12: { strategy_plan: 14, regulatory_reform: 11, capital_investment: 12, programme_service: 12, institutional_capacity: 9, data_reporting: 18, partnership_collaboration: 8, target_goal: 10, other_commitment: 3 },
-    13: { strategy_plan: 18, regulatory_reform: 14, capital_investment: 18, programme_service: 15, institutional_capacity: 7, data_reporting: 15, partnership_collaboration: 7, target_goal: 13, other_commitment: 2 },
-    14: { strategy_plan: 12, regulatory_reform: 10, capital_investment: 15, programme_service: 11, institutional_capacity: 10, data_reporting: 15, partnership_collaboration: 10, target_goal: 9, other_commitment: 3 },
-    15: { strategy_plan: 14, regulatory_reform: 11, capital_investment: 12, programme_service: 12, institutional_capacity: 10, data_reporting: 14, partnership_collaboration: 10, target_goal: 10, other_commitment: 3 },
-    16: { strategy_plan: 18, regulatory_reform: 14, capital_investment: 8, programme_service: 10, institutional_capacity: 15, data_reporting: 10, partnership_collaboration: 12, target_goal: 10, other_commitment: 3 },
-    17: { strategy_plan: 14, regulatory_reform: 11, capital_investment: 12, programme_service: 9, institutional_capacity: 9, data_reporting: 12, partnership_collaboration: 8, target_goal: 9, other_commitment: 4 },
-  };
+type DistItem = { sdgId: number; categoryId: string; region: string; year: number; count: number };
+const commitmentData = commitmentRaw as DistItem[];
+const challengeData = challengeRaw as DistItem[];
+const sdgs = Array.from({ length: 17 }, (_, i) => i + 1);
+const allRegions = ['All Regions', ...REGIONS];
 
-  const regionCommitmentModifiers: Record<string, Record<string, number>> = {
-    'All Regions': { strategy_plan: 0, regulatory_reform: 0, capital_investment: 0, programme_service: 0, institutional_capacity: 0, data_reporting: 0, partnership_collaboration: 0, target_goal: 0, other_commitment: 0 },
-    'Europe': { strategy_plan: 3, regulatory_reform: 4, capital_investment: -2, programme_service: 2, institutional_capacity: 1, data_reporting: 8, partnership_collaboration: 2, target_goal: 1, other_commitment: -1 },
-    'North America': { strategy_plan: 2, regulatory_reform: 3, capital_investment: -1, programme_service: 1, institutional_capacity: 2, data_reporting: 6, partnership_collaboration: 2, target_goal: 1, other_commitment: 0 },
-    'LATAM': { strategy_plan: 3, regulatory_reform: 4, capital_investment: 3, programme_service: 1, institutional_capacity: -1, data_reporting: -3, partnership_collaboration: -1, target_goal: 1, other_commitment: 1 },
-    'Africa': { strategy_plan: -2, regulatory_reform: -2, capital_investment: -8, programme_service: -1, institutional_capacity: 3, data_reporting: -5, partnership_collaboration: 3, target_goal: -1, other_commitment: 1 },
-    'Middle East': { strategy_plan: 1, regulatory_reform: 2, capital_investment: 5, programme_service: 2, institutional_capacity: 4, data_reporting: -2, partnership_collaboration: 5, target_goal: 1, other_commitment: 0 },
-    'Asia': { strategy_plan: 2, regulatory_reform: 2, capital_investment: 4, programme_service: 5, institutional_capacity: -1, data_reporting: 2, partnership_collaboration: 0, target_goal: 4, other_commitment: 0 },
-    'Australia & Oceania': { strategy_plan: 1, regulatory_reform: 2, capital_investment: -3, programme_service: 0, institutional_capacity: 1, data_reporting: 5, partnership_collaboration: 0, target_goal: 0, other_commitment: 1 },
-  };
-
-  const specificityRegionMod: Record<string, number> = {
-    'All Regions': 0, 'Europe': 15, 'North America': 10, 'Asia': 8,
-    'Australia & Oceania': 5, 'LATAM': 0, 'Middle East': -5, 'Africa': -10,
-  };
-
-  const resourceRegionMod: Record<string, number> = {
-    'All Regions': 0, 'Europe': 10, 'North America': 8, 'Asia': 5,
-    'Australia & Oceania': 3, 'LATAM': -3, 'Middle East': -5, 'Africa': -20,
-  };
-
-  // Generate commitment data by SDG and Region
-  const commitmentsBySDGAndRegion: any = {};
-
-  regions.forEach(region => {
-    commitmentsBySDGAndRegion[region] = sdgs.map(sdgId => {
-      const commitments: any = { sdg: sdgId, region };
-      const bases = commitmentBaseBySDG[sdgId];
-      const mods = regionCommitmentModifiers[region] || regionCommitmentModifiers['All Regions'];
-
-      COMMITMENT_CATEGORIES.forEach(cat => {
-        const base = bases[cat.id] || 10;
-        const modifier = mods[cat.id] || 0;
-        commitments[cat.id] = Math.round(Math.max(2, Math.min(95, base + modifier)));
-      });
-
-      // Ambition metrics
-      const specificityBase = 45 + (sdgId * 3) % 40;
-      const resourceBase = 35 + (sdgId * 5) % 45;
-
-      commitments.specificity = Math.round(Math.max(10, Math.min(95, specificityBase + (specificityRegionMod[region] || 0))));
-      commitments.resourceCommitment = Math.round(Math.max(10, Math.min(95, resourceBase + (resourceRegionMod[region] || 0))));
-      commitments.totalCommitments = 80 + sdgId * 7;
-
-      return commitments;
-    });
+function getCommitmentDistribution(sdgId: number, region: string): Record<string, number> {
+  let items = commitmentData.filter(d => d.sdgId === sdgId);
+  if (region !== 'All Regions') items = items.filter(d => d.region === region);
+  const total = items.reduce((s, d) => s + d.count, 0);
+  const result: Record<string, number> = {};
+  COMMITMENT_CATEGORIES.forEach(cat => {
+    const catCount = items.filter(d => d.categoryId === cat.id).reduce((s, d) => s + d.count, 0);
+    result[cat.id] = total > 0 ? Math.round((catCount / total) * 100) : 0;
   });
+  return result;
+}
 
-  // Challenge-Commitment Gap Analysis by Region
-  const gapBySDG: Record<number, number> = {
-    1: -15, 2: -18, 3: -5, 4: -2, 5: -22, 6: -4, 7: -8, 8: -6,
-    9: -16, 10: -24, 11: 12, 12: -16, 13: -37, 14: -32, 15: -28,
-    16: -19, 17: -21
-  };
-
-  const gapRegionMod: Record<string, number> = {
-    'All Regions': 0, 'Europe': 8, 'North America': 6, 'Asia': 3,
-    'LATAM': -2, 'Middle East': -3, 'Africa': -10, 'Australia & Oceania': 4,
-  };
-
-  const gapAnalysisByRegion: any = {};
-
-  regions.forEach(region => {
-    gapAnalysisByRegion[region] = sdgs.map(sdgId => {
-      const baseGap = gapBySDG[sdgId];
-      const regionMod = gapRegionMod[region] || 0;
-      const adjustedGap = baseGap + regionMod;
-
-      const commitmentIntensity = 50 + (sdgId * 3) % 30;
-      const challengeIntensity = commitmentIntensity - adjustedGap;
-
-      const clampedChallenge = Math.round(Math.max(20, Math.min(95, challengeIntensity)));
-      const clampedCommitment = Math.round(Math.max(15, Math.min(95, commitmentIntensity)));
-      const gap = clampedChallenge - clampedCommitment;
-
-      return {
-        sdg: sdgId,
-        region,
-        challengeIntensity: clampedChallenge,
-        commitmentIntensity: clampedCommitment,
-        gap: Math.round(gap),
-        gapCategory: gap > 20 ? 'Large Gap' : gap > 0 ? 'Moderate Gap' : 'Well Addressed',
-      };
-    });
+function buildGapAnalysis(region: string) {
+  return sdgs.map(sdgId => {
+    let cItems = challengeData.filter(d => d.sdgId === sdgId);
+    let mItems = commitmentData.filter(d => d.sdgId === sdgId);
+    if (region !== 'All Regions') {
+      cItems = cItems.filter(d => d.region === region);
+      mItems = mItems.filter(d => d.region === region);
+    }
+    const challengeCount = cItems.reduce((s, d) => s + d.count, 0);
+    const commitmentCount = mItems.reduce((s, d) => s + d.count, 0);
+    const crr = challengeCount > 0 ? Math.round((commitmentCount / challengeCount) * 100) / 100 : null;
+    return {
+      sdg: sdgId,
+      challengeCount,
+      commitmentCount,
+      crr,
+      totalVolume: challengeCount + commitmentCount,
+      gapCategory: crr === null ? 'No Challenges'
+                 : crr < 0.7 ? 'Significant Deficit'
+                 : crr < 0.9 ? 'Moderate Deficit'
+                 : crr < 1.1 ? 'Balanced'
+                 : crr < 1.5 ? 'Moderate Surplus'
+                 : 'Strong Surplus',
+    };
   });
-
-  // Regional ambition profiles (not filtered by region selector)
-  const regionalAmbitionData: Record<string, Record<string, number>> = {
-    'Europe': { strategy_plan: 58, regulatory_reform: 55, capital_investment: 48, programme_service: 50, institutional_capacity: 48, data_reporting: 68, partnership_collaboration: 52, target_goal: 45, other_commitment: 15 },
-    'North America': { strategy_plan: 55, regulatory_reform: 52, capital_investment: 50, programme_service: 48, institutional_capacity: 45, data_reporting: 62, partnership_collaboration: 48, target_goal: 42, other_commitment: 12 },
-    'LATAM': { strategy_plan: 48, regulatory_reform: 45, capital_investment: 55, programme_service: 42, institutional_capacity: 38, data_reporting: 38, partnership_collaboration: 42, target_goal: 40, other_commitment: 18 },
-    'Africa': { strategy_plan: 42, regulatory_reform: 38, capital_investment: 35, programme_service: 38, institutional_capacity: 45, data_reporting: 32, partnership_collaboration: 45, target_goal: 35, other_commitment: 16 },
-    'Middle East': { strategy_plan: 45, regulatory_reform: 42, capital_investment: 55, programme_service: 45, institutional_capacity: 50, data_reporting: 40, partnership_collaboration: 52, target_goal: 38, other_commitment: 14 },
-    'Asia': { strategy_plan: 50, regulatory_reform: 48, capital_investment: 52, programme_service: 58, institutional_capacity: 42, data_reporting: 48, partnership_collaboration: 45, target_goal: 52, other_commitment: 15 },
-    'Australia & Oceania': { strategy_plan: 52, regulatory_reform: 48, capital_investment: 45, programme_service: 45, institutional_capacity: 44, data_reporting: 58, partnership_collaboration: 46, target_goal: 40, other_commitment: 13 },
-  };
-
-  const regionalAmbition = [...REGIONS].map(region => {
-    const profile: any = { region, ...regionalAmbitionData[region] };
-    return profile;
-  });
-
-  // Timeframe distribution
-  const timeframeData = [
-    { timeframe: 'Short-term (1-2 years)', strategy_plan: 15, regulatory_reform: 10, capital_investment: 18, programme_service: 22, institutional_capacity: 12, data_reporting: 42, partnership_collaboration: 18, target_goal: 28, other_commitment: 8 },
-    { timeframe: 'Medium-term (3-5 years)', strategy_plan: 35, regulatory_reform: 28, capital_investment: 32, programme_service: 30, institutional_capacity: 28, data_reporting: 30, partnership_collaboration: 25, target_goal: 35, other_commitment: 10 },
-    { timeframe: 'Long-term (5+ years)', strategy_plan: 22, regulatory_reform: 25, capital_investment: 48, programme_service: 18, institutional_capacity: 18, data_reporting: 20, partnership_collaboration: 15, target_goal: 15, other_commitment: 5 },
-  ];
-
-  return {
-    commitmentsBySDGAndRegion,
-    gapAnalysisByRegion,
-    regionalAmbition,
-    regionalAmbitionData,
-    timeframeData,
-    regions,
-  };
-};
+}
 
 export function CommitmentStatementsAnalysis() {
-  const {
-    commitmentsBySDGAndRegion,
-    gapAnalysisByRegion,
-    regionalAmbition,
-    regionalAmbitionData,
-    timeframeData,
-    regions,
-  } = useMemo(() => generateCommitmentData(), []);
-
   const [selectedSDG, setSelectedSDG] = useState<number>(11);
   const [selectedRegion, setSelectedRegion] = useState<string>('All Regions');
-  const [radarRegions, setRadarRegions] = useState<string[]>(['Europe', 'Asia', 'Africa']);
 
-  const [showAllTimeframe, setShowAllTimeframe] = useState(false);
+  const selectedSDGData = useMemo(() => {
+    const dist = getCommitmentDistribution(selectedSDG, selectedRegion);
+    let items = commitmentData.filter(d => d.sdgId === selectedSDG);
+    if (selectedRegion !== 'All Regions') items = items.filter(d => d.region === selectedRegion);
+    const totalCommitments = items.reduce((s, d) => s + d.count, 0);
+    return { ...dist, totalCommitments };
+  }, [selectedSDG, selectedRegion]);
 
-  // Get data for selected SDG and Region
-  const selectedSDGData = commitmentsBySDGAndRegion[selectedRegion].find(d => d.sdg === selectedSDG);
-  const selectedGapData = gapAnalysisByRegion[selectedRegion].find(d => d.sdg === selectedSDG);
+  const gapAnalysis = useMemo(() => buildGapAnalysis(selectedRegion), [selectedRegion]);
+  const selectedGapData = gapAnalysis.find(d => d.sdg === selectedSDG);
 
-  const radarData = useMemo(() => {
-    return COMMITMENT_CATEGORIES.map(cat => {
-      const entry: Record<string, string | number> = { type: COMMITMENT_ICON_MAP[cat.id].shortName };
-      REGIONS.forEach(region => {
-        entry[region] = regionalAmbitionData[region]?.[cat.id] ?? 0;
-      });
-      return entry;
-    });
-  }, [regionalAmbitionData]);
+  // Commitment quality tiers per SDG — reactive to region
+  const qualityData = useMemo(() => {
+    return sdgs.map(sdgId => {
+      let items = commitmentData.filter(d => d.sdgId === sdgId && d.categoryId !== 'other_commitment');
+      if (selectedRegion !== 'All Regions') items = items.filter(d => d.region === selectedRegion);
+      const total = items.reduce((s, d) => s + d.count, 0);
+      if (total === 0) return { sdgId, aspirational: 0, operational: 0, structural: 0, pctConcrete: 0, total: 0 };
 
-  const topCommitmentCategories = useMemo(() => {
-    const lastRow = timeframeData[timeframeData.length - 1];
-    return COMMITMENT_CATEGORIES
-      .map(cat => ({ ...cat, value: (lastRow as any)[cat.id] as number }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 4);
-  }, [timeframeData]);
+      const aspirational = items.filter(d => ASPIRATIONAL_IDS.includes(d.categoryId)).reduce((s, d) => s + d.count, 0);
+      const operational = items.filter(d => OPERATIONAL_IDS.includes(d.categoryId)).reduce((s, d) => s + d.count, 0);
+      const structural = items.filter(d => STRUCTURAL_IDS.includes(d.categoryId)).reduce((s, d) => s + d.count, 0);
 
-  const timeframeDataWithOthers = useMemo(() => {
-    const topIds = topCommitmentCategories.map(c => c.id);
-    return timeframeData.map(d => {
-      const entry: any = { timeframe: d.timeframe };
-      topIds.forEach(id => { entry[id] = (d as any)[id]; });
-      const othersValue = COMMITMENT_CATEGORIES
-        .filter(c => !topIds.includes(c.id))
-        .reduce((sum, c) => sum + ((d as any)[c.id] || 0), 0);
-      entry['other'] = othersValue;
-      return entry;
-    });
-  }, [timeframeData, topCommitmentCategories]);
+      return {
+        sdgId,
+        aspirational: Math.round((aspirational / total) * 100),
+        operational: Math.round((operational / total) * 100),
+        structural: Math.round((structural / total) * 100),
+        pctConcrete: Math.round(((operational + structural) / total) * 100),
+        total,
+      };
+    }).sort((a, b) => b.pctConcrete - a.pctConcrete);
+  }, [selectedRegion]);
 
   return (
     <div className="w-full h-full overflow-auto bg-slate-50">
@@ -254,33 +143,19 @@ export function CommitmentStatementsAnalysis() {
           </p>
         </div>
 
-        {/* Filters */}
+        {/* Region Filter */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-4 mb-6">
           <div className="flex items-center gap-4 flex-wrap">
             <div className="flex items-center gap-2">
               <Filter className="w-4 h-4 text-slate-600" />
-              <span className="text-sm font-medium text-slate-700">Filters:</span>
+              <span className="text-sm font-medium text-slate-700">Region:</span>
             </div>
-
-            <Select value={String(selectedSDG)} onValueChange={(v) => setSelectedSDG(Number(v))}>
-              <SelectTrigger className="w-64">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {Array.from({ length: 17 }, (_, i) => i + 1).map(sdgId => (
-                  <SelectItem key={sdgId} value={String(sdgId)}>
-                    SDG {sdgId} — {getSDGName(sdgId)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
             <select
               value={selectedRegion}
               onChange={(e) => setSelectedRegion(e.target.value)}
               className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              {regions.map(region => (
+              {allRegions.map(region => (
                 <option key={region} value={region}>{region}</option>
               ))}
             </select>
@@ -295,29 +170,66 @@ export function CommitmentStatementsAnalysis() {
               Where Are Cities' Commitments Falling Short?
             </h3>
             <p className="text-sm text-slate-600 mb-4">
-              Comparing the intensity of identified challenges versus commitment strength across all SDGs
+              Comparing the volume of identified challenges versus commitments across all SDGs
             </p>
             <ResponsiveContainer width="100%" height={400}>
-              <BarChart data={gapAnalysisByRegion[selectedRegion]} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
+              <BarChart
+                data={[...gapAnalysis].filter(d => d.crr !== null).sort((a, b) => (a.crr as number) - (b.crr as number))}
+                layout="vertical"
+                margin={{ top: 20, right: 30, left: 60, bottom: 20 }}
+              >
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                 <XAxis
-                  dataKey="sdg"
-                  angle={-45}
-                  textAnchor="end"
-                  height={80}
-                  label={{ value: 'SDG', position: 'insideBottom', offset: -50 }}
+                  type="number"
+                  domain={[0, Math.ceil(Math.max(...gapAnalysis.filter(d => d.crr !== null).map(d => d.crr as number)) * 10) / 10]}
+                  tickFormatter={(v: number) => `${v}x`}
                 />
-                <YAxis label={{ value: 'Intensity (%)', angle: -90, position: 'insideLeft' }} />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="challengeIntensity" name="Challenge Intensity" fill="#ef4444" />
-                <Bar dataKey="commitmentIntensity" name="Commitment Intensity" fill="#10b981" />
+                <YAxis
+                  type="category"
+                  dataKey="sdg"
+                  width={55}
+                  tickFormatter={(v: number) => `SDG ${v}`}
+                  tick={{ fontSize: 11 }}
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '8px'
+                  }}
+                  formatter={(value: any, _name: any, props: any) => {
+                    const entry = props.payload;
+                    return [
+                      `${value}x (${entry.commitmentCount.toLocaleString()} commitments / ${entry.challengeCount.toLocaleString()} challenges)`,
+                      'Response Ratio'
+                    ];
+                  }}
+                  labelFormatter={(v: number) => `SDG ${v} — ${getSDGName(v)}`}
+                />
+                <Bar
+                  dataKey="crr"
+                  name="Commitment Response Ratio"
+                  radius={[0, 4, 4, 0]}
+                  cursor="pointer"
+                  onClick={(data: any) => { if (data?.sdg) setSelectedSDG(data.sdg); }}
+                >
+                  {[...gapAnalysis].filter(d => d.crr !== null).sort((a, b) => (a.crr as number) - (b.crr as number)).map((entry, index) => (
+                    <Cell
+                      key={`gap-${index}`}
+                      fill={(entry.crr as number) < 0.7 ? '#ef4444' : (entry.crr as number) < 0.9 ? '#f59e0b' : (entry.crr as number) < 1.1 ? '#fbbf24' : (entry.crr as number) < 1.5 ? '#10b981' : '#059669'}
+                      stroke={entry.sdg === selectedSDG ? '#1e293b' : 'none'}
+                      strokeWidth={entry.sdg === selectedSDG ? 2 : 0}
+                    />
+                  ))}
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
-            <div className="mt-4 p-4 bg-orange-50 border border-orange-200 rounded-lg border-l-4 border-l-blue-500">
-              <div className="text-sm text-orange-800">
-                <strong>Gap Insight:</strong> SDG 13 (Climate Action) shows the largest gap at −37 points, while SDG 11 (Sustainable Cities) is the only goal where commitments exceed challenges. Cities are over-planning where they're comfortable and under-committing where it matters most.
-              </div>
+            <div className="flex items-center gap-4 mt-2 text-xs text-slate-500">
+              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded" style={{backgroundColor:'#ef4444'}}></span> &lt;0.7x Deficit</span>
+              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded" style={{backgroundColor:'#f59e0b'}}></span> 0.7-0.9x Moderate</span>
+              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded" style={{backgroundColor:'#fbbf24'}}></span> 0.9-1.1x Balanced</span>
+              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded" style={{backgroundColor:'#10b981'}}></span> 1.1-1.5x Surplus</span>
+              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded" style={{backgroundColor:'#059669'}}></span> &gt;1.5x Strong</span>
             </div>
           </div>
 
@@ -331,7 +243,6 @@ export function CommitmentStatementsAnalysis() {
             <Tabs defaultValue="breakdown">
               <TabsList className="w-full">
                 <TabsTrigger value="breakdown">Breakdown</TabsTrigger>
-                <TabsTrigger value="ambition">Ambition</TabsTrigger>
                 <TabsTrigger value="gap">Gap</TabsTrigger>
               </TabsList>
               <TabsContent value="breakdown">
@@ -354,44 +265,33 @@ export function CommitmentStatementsAnalysis() {
                     </div>
                   );
                 })}
-              </TabsContent>
-              <TabsContent value="ambition">
-                <div className="text-sm font-medium text-slate-700 mb-2">Ambition Metrics</div>
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-slate-600">Specificity Score</span>
-                    <span className="font-semibold text-slate-900">{selectedSDGData?.specificity}%</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-slate-600">Resource Commitment</span>
-                    <span className="font-semibold text-slate-900">{selectedSDGData?.resourceCommitment}%</span>
-                  </div>
-                  <div className="text-xs text-slate-500 mt-2 italic">
-                    {selectedSDGData?.specificity > 60 ? 'High specificity suggests actionable, measurable commitments.' : 'Low specificity suggests aspirational language without concrete targets.'}
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-slate-600">Total Commitments</span>
-                    <span className="font-semibold text-slate-900">{selectedSDGData?.totalCommitments}</span>
+                <div className="mt-4 pt-3 border-t border-slate-200">
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-slate-600">Total Commitments</span>
+                    <span className="font-semibold text-slate-900">{selectedSDGData?.totalCommitments?.toLocaleString()}</span>
                   </div>
                 </div>
               </TabsContent>
               <TabsContent value="gap">
                 {selectedGapData && (
                   <div className={`rounded-lg p-4 ${
-                    selectedGapData.gapCategory === 'Large Gap' ? 'border-red-300 bg-red-50' :
-                    selectedGapData.gapCategory === 'Moderate Gap' ? 'border-yellow-300 bg-yellow-50' :
+                    selectedGapData.crr === null ? 'border-slate-300 bg-slate-50' :
+                    (selectedGapData.crr as number) < 0.9 ? 'border-red-300 bg-red-50' :
+                    (selectedGapData.crr as number) < 1.1 ? 'border-yellow-300 bg-yellow-50' :
                     'border-green-300 bg-green-50'
                   }`}>
-                    <div className="text-sm font-medium text-slate-900 mb-2">Challenge-Commitment Gap</div>
+                    <div className="text-sm font-medium text-slate-900 mb-2">Commitment Response Ratio</div>
+                    <div className="text-2xl font-bold text-slate-900 mb-1">{selectedGapData.crr !== null ? `${selectedGapData.crr}x` : 'N/A'}</div>
                     <div className={`text-xs font-medium ${
-                      selectedGapData.gapCategory === 'Large Gap' ? 'text-red-700' :
-                      selectedGapData.gapCategory === 'Moderate Gap' ? 'text-yellow-700' :
+                      selectedGapData.crr === null ? 'text-slate-700' :
+                      (selectedGapData.crr as number) < 0.9 ? 'text-red-700' :
+                      (selectedGapData.crr as number) < 1.1 ? 'text-yellow-700' :
                       'text-green-700'
                     }`}>
                       {selectedGapData.gapCategory}
                     </div>
                     <div className="text-xs text-slate-600 mt-2">
-                      Challenges: {selectedGapData.challengeIntensity}% | Commitments: {selectedGapData.commitmentIntensity}%
+                      {selectedGapData.challengeCount.toLocaleString()} challenges · {selectedGapData.commitmentCount.toLocaleString()} commitments
                     </div>
                   </div>
                 )}
@@ -400,125 +300,131 @@ export function CommitmentStatementsAnalysis() {
           </div>
         </div>
 
-        {/* Regional Ambition & Timeframe */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6">
-            <h3 className="text-lg font-semibold text-slate-900 mb-2 flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-blue-600" />
-              How Do Regions' Strategies Differ?
-            </h3>
-            <p className="text-sm text-slate-600 mb-4">
-              Commitment type preferences by region
-            </p>
-            <div className="flex flex-wrap gap-2 mb-4">
-              {REGIONS.map((region, idx) => {
-                const colors = ['#3b82f6', '#ec4899', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4', '#ef4444'];
-                return (
-                  <button
-                    key={region}
-                    onClick={() => {
-                      setRadarRegions(prev => {
-                        if (prev.includes(region)) {
-                          return prev.length > 1 ? prev.filter(r => r !== region) : prev;
-                        }
-                        return prev.length >= 4 ? prev : [...prev, region];
-                      });
-                    }}
-                    className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
-                      radarRegions.includes(region)
-                        ? 'text-white'
-                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                    }`}
-                    style={radarRegions.includes(region) ? { backgroundColor: colors[idx % colors.length] } : undefined}
-                  >
-                    {region}
-                  </button>
-                );
-              })}
-            </div>
-            <ResponsiveContainer width="100%" height={350}>
-              <RadarChart data={radarData}>
-                <PolarGrid stroke="#e2e8f0" />
-                <PolarAngleAxis dataKey="type" tick={{ fontSize: 9, fontWeight: 600 }} />
-                <PolarRadiusAxis angle={90} domain={[0, 80]} tick={{ fontSize: 10 }} />
-                <Tooltip />
-                <Legend />
-                {radarRegions.map((region) => {
-                  const colors = ['#3b82f6', '#ec4899', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4', '#ef4444'];
-                  return (
-                    <Radar
-                      key={region}
-                      name={region}
-                      dataKey={region}
-                      stroke={colors[REGIONS.indexOf(region) % colors.length]}
-                      fill={colors[REGIONS.indexOf(region) % colors.length]}
-                      fillOpacity={0.2}
-                    />
-                  );
-                })}
-              </RadarChart>
-            </ResponsiveContainer>
-            <div className="mt-4 text-sm text-slate-600 border-l-4 border-blue-500 pl-4">
-              <strong>Regional Patterns:</strong> Europe shows stronger data/monitoring commitments,
-              while Asia-Pacific focuses on strategies. Africa faces investment commitment challenges
-              due to resource constraints.
-            </div>
-          </div>
+        {/* Commitment Quality — Aggregate bar + 3 buckets */}
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6 mb-6">
+          <h3 className="text-lg font-semibold text-slate-900 mb-1 flex items-center gap-2">
+            <TrendingUp className="w-5 h-5 text-blue-600" />
+            How Concrete Are These Commitments?
+          </h3>
+          <p className="text-sm text-slate-500 mb-5">
+            Not all commitments are equal. Are cities setting targets, or actually building infrastructure and launching programmes?
+          </p>
 
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
-                <Calendar className="w-5 h-5 text-purple-600" />
-                How Are Cities Sequencing Their Actions?
-              </h3>
-              <button
-                onClick={() => setShowAllTimeframe(prev => !prev)}
-                className="px-3 py-1 rounded text-xs font-medium transition-colors bg-slate-100 text-slate-700 hover:bg-slate-200"
-              >
-                {showAllTimeframe ? 'Show Top 4' : 'Show All'}
-              </button>
-            </div>
-            <p className="text-sm text-slate-600 mb-4">
-              When do cities plan to deliver on commitments?
-            </p>
-            <ResponsiveContainer width="100%" height={350}>
-              <BarChart data={showAllTimeframe ? timeframeData : timeframeDataWithOthers} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis type="number" domain={[0, 100]} />
-                <YAxis type="category" dataKey="timeframe" width={150} tick={{ fontSize: 11 }} />
-                <Tooltip />
-                <Legend />
-                {showAllTimeframe ? (
-                  COMMITMENT_CATEGORIES.map(cat => (
-                    <Bar
-                      key={cat.id}
-                      dataKey={cat.id}
-                      name={COMMITMENT_ICON_MAP[cat.id].shortName}
-                      stackId="a"
-                      fill={cat.color}
-                    />
-                  ))
-                ) : (
-                  <>
-                    {topCommitmentCategories.map(cat => (
-                      <Bar
-                        key={cat.id}
-                        dataKey={cat.id}
-                        name={COMMITMENT_ICON_MAP[cat.id].shortName}
-                        stackId="a"
-                        fill={cat.color}
-                      />
-                    ))}
-                    <Bar dataKey="other" name="Other" stackId="a" fill="#94a3b8" />
-                  </>
-                )}
-              </BarChart>
-            </ResponsiveContainer>
-            <div className="mt-4 text-sm text-slate-600 border-l-4 border-blue-500 pl-4">
-              <strong>Temporal Insight:</strong> Policy reforms cluster in medium-term (3-5 years),
-              infrastructure investments in long-term (5+ years), while data improvements show
-              more short-term action.
-            </div>
+          {/* Overall aggregate bar */}
+          {(() => {
+            const totals = qualityData.reduce((acc, d) => {
+              acc.aspirational += d.aspirational * d.total;
+              acc.operational += d.operational * d.total;
+              acc.structural += d.structural * d.total;
+              acc.total += d.total;
+              return acc;
+            }, { aspirational: 0, operational: 0, structural: 0, total: 0 });
+            const pctA = totals.total > 0 ? Math.round(totals.aspirational / totals.total) : 0;
+            const pctO = totals.total > 0 ? Math.round(totals.operational / totals.total) : 0;
+            const pctS = totals.total > 0 ? Math.round(totals.structural / totals.total) : 0;
+            const pctConcrete = pctO + pctS;
+
+            return (
+              <div className="mb-6">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-slate-700">
+                    Overall: <span className="font-bold text-blue-700">{pctConcrete}% concrete</span>
+                  </span>
+                  <span className="text-sm text-slate-400">{pctA}% aspirational</span>
+                </div>
+                <div className="flex h-8 rounded-lg overflow-hidden">
+                  <div
+                    className="h-full flex items-center justify-center text-xs font-bold text-white"
+                    style={{ width: `${pctS}%`, backgroundColor: '#1e3a5f' }}
+                  >
+                    {pctS > 5 && `${pctS}%`}
+                  </div>
+                  <div
+                    className="h-full flex items-center justify-center text-xs font-bold text-white"
+                    style={{ width: `${pctO}%`, backgroundColor: '#3b82f6' }}
+                  >
+                    {pctO > 5 && `${pctO}%`}
+                  </div>
+                  <div
+                    className="h-full flex items-center justify-center text-xs font-bold text-white"
+                    style={{ width: `${pctA}%`, backgroundColor: '#94a3b8' }}
+                  >
+                    {pctA > 5 && `${pctA}%`}
+                  </div>
+                </div>
+                <div className="flex items-center gap-6 mt-2 text-xs text-slate-500">
+                  <span className="flex items-center gap-1"><span className="w-3 h-2 rounded-sm" style={{backgroundColor:'#1e3a5f'}} /> Structural (Infrastructure, Regulation)</span>
+                  <span className="flex items-center gap-1"><span className="w-3 h-2 rounded-sm" style={{backgroundColor:'#3b82f6'}} /> Operational (Programmes, Partnerships)</span>
+                  <span className="flex items-center gap-1"><span className="w-3 h-2 rounded-sm" style={{backgroundColor:'#94a3b8'}} /> Aspirational (Targets, Strategies)</span>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Three bucket cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {[
+              {
+                label: 'Action-Oriented',
+                description: 'More than 55% concrete commitments',
+                filter: (d: typeof qualityData[0]) => d.pctConcrete > 55,
+                borderColor: 'border-blue-300',
+                bgColor: 'bg-blue-50',
+                textColor: 'text-blue-800',
+                badgeColor: 'bg-blue-600',
+              },
+              {
+                label: 'Balanced',
+                description: '45–55% concrete commitments',
+                filter: (d: typeof qualityData[0]) => d.pctConcrete >= 45 && d.pctConcrete <= 55,
+                borderColor: 'border-slate-300',
+                bgColor: 'bg-slate-50',
+                textColor: 'text-slate-700',
+                badgeColor: 'bg-slate-500',
+              },
+              {
+                label: 'Aspirational-Heavy',
+                description: 'Less than 45% concrete commitments',
+                filter: (d: typeof qualityData[0]) => d.pctConcrete < 45,
+                borderColor: 'border-amber-300',
+                bgColor: 'bg-amber-50',
+                textColor: 'text-amber-800',
+                badgeColor: 'bg-amber-500',
+              },
+            ].map(bucket => {
+              const sdgsInBucket = qualityData.filter(bucket.filter).sort((a, b) => b.pctConcrete - a.pctConcrete);
+              return (
+                <div key={bucket.label} className={`rounded-xl border ${bucket.borderColor} ${bucket.bgColor} p-4`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className={`text-sm font-bold ${bucket.textColor}`}>{bucket.label}</span>
+                    <span className={`${bucket.badgeColor} text-white text-xs font-bold px-2 py-0.5 rounded-full`}>
+                      {sdgsInBucket.length}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 mb-3">{bucket.description}</p>
+                  {sdgsInBucket.length > 0 ? (
+                    <div className="space-y-1.5">
+                      {sdgsInBucket.map(d => (
+                        <div
+                          key={d.sdgId}
+                          className={`flex items-center justify-between text-sm cursor-pointer rounded px-1.5 py-0.5 transition-colors ${
+                            d.sdgId === selectedSDG ? 'bg-white/70 font-bold' : 'hover:bg-white/50'
+                          }`}
+                          onClick={() => setSelectedSDG(d.sdgId)}
+                        >
+                          <span className={bucket.textColor}>
+                            SDG {d.sdgId} <span className="text-xs opacity-70">{getSDGName(d.sdgId).length > 16 ? getSDGName(d.sdgId).slice(0, 16) + '…' : getSDGName(d.sdgId)}</span>
+                          </span>
+                          <span className="tabular-nums font-medium text-xs">{d.pctConcrete}%</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-400 italic">No SDGs in this category</p>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>

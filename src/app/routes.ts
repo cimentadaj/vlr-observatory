@@ -4,7 +4,8 @@ import { SDGCoverageAnalysis } from '@/app/components/SDGCoverageAnalysis';
 import { PolicyRecommendationSynthesis } from '@/app/components/PolicyRecommendationSynthesis';
 import { ChallengesBarriersAnalysis } from '@/app/components/ChallengesBarriersAnalysis';
 import { CommitmentStatementsAnalysis } from '@/app/components/CommitmentStatementsAnalysis';
-import { EmergingThematicAnalysis } from '@/app/components/EmergingThematicAnalysis';
+// Emerging Thematic Analysis is temporarily disabled — no DB-backed data yet
+// import { EmergingThematicAnalysis } from '@/app/components/EmergingThematicAnalysis';
 
 export const router = createBrowserRouter([
   {
@@ -15,7 +16,7 @@ export const router = createBrowserRouter([
       { path: 'policy-recommendations', Component: PolicyRecommendationSynthesis },
       { path: 'challenges-barriers', Component: ChallengesBarriersAnalysis },
       { path: 'commitment-statements', Component: CommitmentStatementsAnalysis },
-      { path: 'emerging-themes', Component: EmergingThematicAnalysis },
+      // { path: 'emerging-themes', Component: EmergingThematicAnalysis },
     ],
   },
 ], { basename: import.meta.env.BASE_URL.replace(/\/$/, '') });

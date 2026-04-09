@@ -26,6 +26,11 @@ jobs:
 
       - run: npm ci
 
+      - name: Generate data from database
+        run: node scripts/generate-data.mjs
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
       - run: npm run build
 
       - uses: actions/upload-pages-artifact@v3

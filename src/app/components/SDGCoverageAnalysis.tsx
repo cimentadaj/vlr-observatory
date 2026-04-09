@@ -14,68 +14,48 @@ import {
 } from 'recharts';
 import { AlertCircle, TrendingUp, TrendingDown, Filter, ChevronDown } from 'lucide-react';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from './ui/collapsible';
-import { REGIONS, SDG_NAMES, getSDGName } from './data/constants';
+import { getSDGName } from './data/constants';
+import depthRaw from '@/data/generated/sdg-depth.json';
+import coverageRaw from '@/data/generated/sdg-coverage.json';
+import metadataRaw from '@/data/generated/metadata.json';
 
-// Deterministic base coverage values per SDG
-const SDG_BASE_COVERAGE: Record<number, number> = {
-  1: 41, 2: 30, 3: 68, 4: 62, 5: 33,
-  6: 58, 7: 44, 8: 47, 9: 35, 10: 38,
-  11: 82, 12: 25, 13: 76, 14: 12, 15: 17,
-  16: 28, 17: 18
-};
+type DepthRow = { sdgId: number; region: string; year: number; docCount: number; itemCount: number };
+type CoverageRow = { sdgId: number; region: string; year: number; vlrCount: number; totalDocs: number; coverage: number };
 
-// Regional multipliers (capped at 100)
-const REGION_MULTIPLIERS: Record<string, number> = {
-  'Europe': 1.15,
-  'North America': 1.05,
-  'Asia': 0.85,
-  'Australia & Oceania': 0.80,
-  'LATAM': 0.73,
-  'Middle East': 0.65,
-  'Africa': 0.62
-};
+const sdgs = Array.from({ length: 17 }, (_, i) => ({
+  id: i + 1,
+  name: `SDG ${i + 1}`,
+  fullName: getSDGName(i + 1),
+}));
 
-// Mock data representing VLR SDG coverage
-const generateMockData = () => {
-  const sdgs = Array.from({ length: 17 }, (_, i) => ({
-    id: i + 1,
-    name: `SDG ${i + 1}`,
-    fullName: getSDGName(i + 1)
-  }));
+const regions = metadataRaw.regions;
+const years = metadataRaw.years;
+const depthData = depthRaw as DepthRow[];
+const coverageData = coverageRaw as CoverageRow[];
 
-  const regions = [...REGIONS];
-  const years = [2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025];
+// Compute items_per_doc for a set of depth rows, then normalize to EDI (0-100)
+function computeEDI(rows: DepthRow[]): Array<{ sdgId: number; itemsPerDoc: number; edi: number; docCount: number; itemCount: number }> {
+  const bySDG: Record<number, { totalItems: number; totalDocs: number }> = {};
+  for (const r of rows) {
+    if (!bySDG[r.sdgId]) bySDG[r.sdgId] = { totalItems: 0, totalDocs: 0 };
+    bySDG[r.sdgId].totalItems += r.itemCount;
+    bySDG[r.sdgId].totalDocs += r.docCount;
+  }
 
-  // Generate coverage data
-  const coverageData: any[] = [];
-  regions.forEach(region => {
-    years.forEach(year => {
-      sdgs.forEach(sdg => {
-        const base = SDG_BASE_COVERAGE[sdg.id];
-        const regionMult = REGION_MULTIPLIERS[region] ?? 1;
-        const temporalScale = 0.7 + 0.3 * ((year - 2018) / 7);
-        const coverage = Math.min(100, Math.round(base * regionMult * temporalScale));
-        const vlrCount = Math.round((coverage / 100) * (30 + sdg.id * 3));
-
-        coverageData.push({
-          sdg: sdg.id,
-          sdgName: sdg.name,
-          sdgFullName: sdg.fullName,
-          region,
-          year,
-          coverage,
-          vlrCount
-        });
-      });
-    });
+  const results = sdgs.map(sdg => {
+    const d = bySDG[sdg.id];
+    const itemsPerDoc = d && d.totalDocs > 0 ? d.totalItems / d.totalDocs : 0;
+    return { sdgId: sdg.id, itemsPerDoc, edi: 0, docCount: d?.totalDocs || 0, itemCount: d?.totalItems || 0 };
   });
 
-  return { sdgs, regions, years, coverageData };
-};
+  const maxIPD = Math.max(...results.map(r => r.itemsPerDoc), 1);
+  for (const r of results) {
+    r.edi = Math.round((r.itemsPerDoc / maxIPD) * 100);
+  }
+  return results;
+}
 
 export function SDGCoverageAnalysis() {
-  const { sdgs, regions, years, coverageData } = useMemo(() => generateMockData(), []);
-
   const [selectedRegion, setSelectedRegion] = useState<string>('All');
   const [selectedPeriod, setSelectedPeriod] = useState<string>('All');
   const [view, setView] = useState<'heatmap' | 'trends'>('heatmap');
@@ -83,139 +63,129 @@ export function SDGCoverageAnalysis() {
   const [hoveredCell, setHoveredCell] = useState<{region: string, sdg: number} | null>(null);
   const [hoveredBar, setHoveredBar] = useState<number | null>(null);
 
-  // Filter data based on selections
-  const filteredData = useMemo(() => {
-    let filtered = coverageData;
-
-    if (selectedRegion !== 'All') {
-      filtered = filtered.filter(d => d.region === selectedRegion);
-    }
-
+  // Filter depth data based on selections
+  const filteredDepth = useMemo(() => {
+    let filtered = depthData;
+    if (selectedRegion !== 'All') filtered = filtered.filter(d => d.region === selectedRegion);
     if (selectedPeriod !== 'All') {
       const [start, end] = selectedPeriod.split('-').map(Number);
       filtered = filtered.filter(d => d.year >= start && d.year <= end);
     }
-
     return filtered;
-  }, [coverageData, selectedRegion, selectedPeriod]);
+  }, [selectedRegion, selectedPeriod]);
 
-  // Calculate SDG coverage aggregates for heatmap
+  // EDI stats for bar chart (sorted by EDI descending)
+  const sdgEDIStats = useMemo(() => {
+    const ediResults = computeEDI(filteredDepth);
+    return ediResults
+      .map(r => ({
+        sdg: r.sdgId,
+        name: `SDG ${r.sdgId} - ${getSDGName(r.sdgId)}`,
+        edi: r.edi,
+        itemsPerDoc: Math.round(r.itemsPerDoc * 10) / 10,
+        docCount: r.docCount,
+        itemCount: r.itemCount,
+      }))
+      .sort((a, b) => b.edi - a.edi);
+  }, [filteredDepth]);
+
+  // Heatmap data: EDI per region × SDG
+  // Uses a GLOBAL max across all regions so cross-region comparison is valid
   const heatmapData = useMemo(() => {
-    const aggregated: Record<string, Record<number, { coverage: number, count: number }>> = {};
-
     const regionsToShow = selectedRegion === 'All' ? regions : [selectedRegion];
 
+    // Compute items_per_doc for each region × SDG
+    const rawData: Array<{ region: string; sdgId: number; itemsPerDoc: number }> = [];
     regionsToShow.forEach(region => {
-      aggregated[region] = {};
+      const regionRows = filteredDepth.filter(d => d.region === region);
       sdgs.forEach(sdg => {
-        aggregated[region][sdg.id] = { coverage: 0, count: 0 };
-      });
-    });
-
-    filteredData.forEach(d => {
-      if (!aggregated[d.region]) return;
-      aggregated[d.region][d.sdg].coverage += d.coverage;
-      aggregated[d.region][d.sdg].count += 1;
-    });
-
-    // Calculate averages
-    const result: any[] = [];
-    Object.entries(aggregated).forEach(([region, sdgData]) => {
-      Object.entries(sdgData).forEach(([sdgId, data]) => {
-        result.push({
+        const sdgRows = regionRows.filter(d => d.sdgId === sdg.id);
+        const totalItems = sdgRows.reduce((s, d) => s + d.itemCount, 0);
+        const totalDocs = sdgRows.reduce((s, d) => s + d.docCount, 0);
+        rawData.push({
           region,
-          sdg: Number(sdgId),
-          sdgName: getSDGName(Number(sdgId)),
-          avgCoverage: data.count > 0 ? Math.round(data.coverage / data.count) : 0
+          sdgId: sdg.id,
+          itemsPerDoc: totalDocs > 0 ? totalItems / totalDocs : 0,
         });
       });
     });
 
-    return result;
-  }, [filteredData, selectedRegion, sdgs, regions]);
+    // Single global max for cross-region comparability
+    const globalMax = Math.max(...rawData.map(d => d.itemsPerDoc), 1);
 
-  // Calculate overall SDG coverage for bar chart
-  const sdgCoverageStats = useMemo(() => {
-    const stats: Record<number, { total: number, count: number, vlrTotal: number }> = {};
+    return rawData.map(d => ({
+      region: d.region,
+      sdg: d.sdgId,
+      sdgName: getSDGName(d.sdgId),
+      edi: Math.round((d.itemsPerDoc / globalMax) * 100),
+      itemsPerDoc: Math.round(d.itemsPerDoc * 10) / 10,
+    }));
+  }, [filteredDepth, selectedRegion]);
 
-    sdgs.forEach(sdg => {
-      stats[sdg.id] = { total: 0, count: 0, vlrTotal: 0 };
-    });
-
-    filteredData.forEach(d => {
-      stats[d.sdg].total += d.coverage;
-      stats[d.sdg].count += 1;
-      stats[d.sdg].vlrTotal += d.vlrCount;
-    });
-
-    return sdgs.map(sdg => ({
-      sdg: sdg.id,
-      name: sdg.fullName,
-      avgCoverage: stats[sdg.id].count > 0 ? Math.round(stats[sdg.id].total / stats[sdg.id].count) : 0,
-      vlrCount: Math.round(stats[sdg.id].vlrTotal / stats[sdg.id].count)
-    })).sort((a, b) => b.avgCoverage - a.avgCoverage);
-  }, [filteredData, sdgs]);
-
-  // Calculate time trends
+  // Time trends: items_per_doc over years
   const trendData = useMemo(() => {
-    const trends: Record<number, Record<number, { total: number, count: number }>> = {};
-
-    years.forEach(year => {
-      trends[year] = {};
-      sdgs.forEach(sdg => {
-        trends[year][sdg.id] = { total: 0, count: 0 };
-      });
-    });
-
-    filteredData.forEach(d => {
-      trends[d.year][d.sdg].total += d.coverage;
-      trends[d.year][d.sdg].count += 1;
-    });
-
-    // Get top 5 SDGs and bottom 3 for comparison
-    const topSDGs = sdgCoverageStats.slice(0, 5).map(s => s.sdg);
-    const bottomSDGs = sdgCoverageStats.slice(-3).map(s => s.sdg);
+    const topSDGs = sdgEDIStats.slice(0, 5).map(s => s.sdg);
+    const bottomSDGs = sdgEDIStats.slice(-3).map(s => s.sdg);
+    const trendSDGs = [...topSDGs, ...bottomSDGs];
 
     return years.map(year => {
+      const yearRows = filteredDepth.filter(d => d.year === year);
       const yearData: any = { year };
-      [...topSDGs, ...bottomSDGs].forEach(sdgId => {
-        const data = trends[year][sdgId];
-        yearData[`SDG${sdgId}`] = data.count > 0 ? Math.round(data.total / data.count) : 0;
+
+      trendSDGs.forEach(sdgId => {
+        const sdgRows = yearRows.filter(d => d.sdgId === sdgId);
+        const totalItems = sdgRows.reduce((s, d) => s + d.itemCount, 0);
+        const totalDocs = sdgRows.reduce((s, d) => s + d.docCount, 0);
+        yearData[`SDG${sdgId}`] = totalDocs > 0 ? Math.round((totalItems / totalDocs) * 10) / 10 : 0;
       });
+
       return yearData;
     });
-  }, [filteredData, years, sdgCoverageStats, sdgs]);
+  }, [filteredDepth, sdgEDIStats]);
 
-  // Generate insights
+  // Insights
   const insights = useMemo(() => {
-    const mostReported = sdgCoverageStats[0];
-    const leastReported = sdgCoverageStats[sdgCoverageStats.length - 1];
-    const underReported = sdgCoverageStats.filter(s => s.avgCoverage < 40);
+    const mostReported = sdgEDIStats[0];
+    const leastReported = sdgEDIStats[sdgEDIStats.length - 1];
+    const underReported = sdgEDIStats.filter(s => s.edi < 30);
 
-    // Calculate trend
-    const recentYears = filteredData.filter(d => d.year >= 2023);
-    const olderYears = filteredData.filter(d => d.year < 2020);
-    const recentAvg = recentYears.reduce((sum, d) => sum + d.coverage, 0) / recentYears.length;
-    const olderAvg = olderYears.reduce((sum, d) => sum + d.coverage, 0) / olderYears.length;
-    const trend = recentAvg > olderAvg ? 'increasing' : 'decreasing';
-    const trendChange = Math.abs(Math.round(recentAvg - olderAvg));
-
-    return {
-      mostReported,
-      leastReported,
-      underReported,
-      trend,
-      trendChange
+    // Trend: compare recent vs older items_per_doc
+    const recentRows = filteredDepth.filter(d => d.year >= 2023);
+    const olderRows = filteredDepth.filter(d => d.year < 2020);
+    const avgIPD = (rows: DepthRow[]) => {
+      const totalItems = rows.reduce((s, d) => s + d.itemCount, 0);
+      const totalDocs = rows.reduce((s, d) => s + d.docCount, 0);
+      return totalDocs > 0 ? totalItems / totalDocs : 0;
     };
-  }, [sdgCoverageStats, filteredData]);
+    const recentAvg = avgIPD(recentRows);
+    const olderAvg = avgIPD(olderRows);
+    const trend = recentAvg > olderAvg ? 'increasing' : 'decreasing';
+    const trendChange = olderAvg > 0 ? Math.abs(Math.round(((recentAvg - olderAvg) / olderAvg) * 100)) : 0;
 
-  // Get color for heatmap
-  const getHeatmapColor = (coverage: number) => {
-    if (coverage >= 75) return '#059669'; // green
-    if (coverage >= 50) return '#10b981';
-    if (coverage >= 35) return '#fbbf24'; // yellow
-    if (coverage >= 20) return '#f59e0b';
-    return '#ef4444'; // red
+    // Find the fastest-rising SDG (biggest increase in items_per_doc from pre-2020 to 2023+)
+    const perSDGTrend = sdgs.map(sdg => {
+      const older = filteredDepth.filter(d => d.sdgId === sdg.id && d.year < 2020);
+      const recent = filteredDepth.filter(d => d.sdgId === sdg.id && d.year >= 2023);
+      const olderIPD = (() => { const items = older.reduce((s, d) => s + d.itemCount, 0); const docs = older.reduce((s, d) => s + d.docCount, 0); return docs > 0 ? items / docs : 0; })();
+      const recentIPD = (() => { const items = recent.reduce((s, d) => s + d.itemCount, 0); const docs = recent.reduce((s, d) => s + d.docCount, 0); return docs > 0 ? items / docs : 0; })();
+      const pctChange = olderIPD > 0 ? Math.round(((recentIPD - olderIPD) / olderIPD) * 100) : 0;
+      return { sdgId: sdg.id, name: getSDGName(sdg.id), pctChange };
+    }).filter(s => s.pctChange !== 0);
+    const fastestRising = perSDGTrend.length > 0 ? perSDGTrend.sort((a, b) => b.pctChange - a.pctChange)[0] : null;
+
+    // Engagement gap: ratio between deepest and shallowest
+    const engagementGap = leastReported.edi > 0 ? Math.round(mostReported.edi / leastReported.edi) : null;
+
+    return { mostReported, leastReported, underReported, trend, trendChange, fastestRising, engagementGap };
+  }, [sdgEDIStats, filteredDepth]);
+
+  // EDI color scale
+  const getEDIColor = (edi: number) => {
+    if (edi >= 70) return '#059669';
+    if (edi >= 50) return '#10b981';
+    if (edi >= 35) return '#fbbf24';
+    if (edi >= 20) return '#f59e0b';
+    return '#ef4444';
   };
 
   return (
@@ -224,13 +194,13 @@ export function SDGCoverageAnalysis() {
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-4xl font-bold text-slate-900 mb-2">
-            SDG Coverage Analysis
+            SDG Engagement Depth Analysis
           </h1>
           <p className="text-lg text-slate-600">
-            Baseline Intelligence: Which SDGs are cities reporting on — and which are systematically under-reported?
+            How deeply are cities engaging with each SDG in their Voluntary Local Reviews?
           </p>
           <p className="text-sm text-slate-500 mt-1 italic">
-            5 SDGs consume 73% of all VLR content — the remaining 12 share just 27%.
+            Engagement Depth Index (EDI): normalized engagement score where the most-covered SDG = 100.
           </p>
         </div>
 
@@ -239,19 +209,31 @@ export function SDGCoverageAnalysis() {
           <h2 className="text-xl font-semibold text-slate-900 mb-4">Key Findings</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="border-l-4 border-green-500 pl-4">
-              <div className="text-sm text-slate-600 mb-1">Most Reported SDG</div>
+              <div className="text-sm text-slate-600 mb-1">Deepest Engagement</div>
               <div className="text-2xl font-bold text-slate-900">{insights.mostReported.name}</div>
-              <div className="text-sm text-green-600 font-medium">{insights.mostReported.avgCoverage}% avg coverage</div>
-              <div className="text-xs text-slate-500 mt-1">Urban sustainability dominates VLR reporting globally</div>
+              <div className="text-sm text-green-600 font-medium">
+                {insights.engagementGap ? `${insights.engagementGap}× more depth than the least-covered SDG` : 'Top-ranked across all VLRs'}
+              </div>
             </div>
-            <div className="border-l-4 border-red-500 pl-4">
-              <div className="text-sm text-slate-600 mb-1">Least Reported SDG</div>
-              <div className="text-2xl font-bold text-slate-900">{insights.leastReported.name}</div>
-              <div className="text-sm text-red-600 font-medium">{insights.leastReported.avgCoverage}% avg coverage</div>
-              <div className="text-xs text-slate-500 mt-1">Marine and terrestrial ecosystem goals remain peripheral</div>
+            <div className="border-l-4 border-amber-500 pl-4">
+              <div className="text-sm text-slate-600 mb-1">Fastest Rising</div>
+              {insights.fastestRising ? (
+                <>
+                  <div className="text-2xl font-bold text-slate-900">{insights.fastestRising.name}</div>
+                  <div className="flex items-center gap-1 text-sm text-amber-600 font-medium">
+                    <TrendingUp className="w-4 h-4" />
+                    {insights.fastestRising.pctChange}% growth since pre-2020
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="text-2xl font-bold text-slate-900">—</div>
+                  <div className="text-sm text-slate-500">Not enough data for trend</div>
+                </>
+              )}
             </div>
             <div className="border-l-4 border-blue-500 pl-4">
-              <div className="text-sm text-slate-600 mb-1">Reporting Trend</div>
+              <div className="text-sm text-slate-600 mb-1">Overall Depth Trend</div>
               <div className="flex items-center gap-2">
                 {insights.trend === 'increasing' ? (
                   <TrendingUp className="w-6 h-6 text-green-600" />
@@ -261,9 +243,8 @@ export function SDGCoverageAnalysis() {
                 <div className="text-2xl font-bold text-slate-900 capitalize">{insights.trend}</div>
               </div>
               <div className={`text-sm font-medium ${insights.trend === 'increasing' ? 'text-green-600' : 'text-red-600'}`}>
-                {insights.trendChange}% change since 2020
+                {insights.trendChange}% change since pre-2020
               </div>
-              <div className="text-xs text-slate-500 mt-1">Post-pandemic acceleration across all regions</div>
             </div>
           </div>
 
@@ -272,9 +253,9 @@ export function SDGCoverageAnalysis() {
               <div className="flex items-start gap-3">
                 <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
                 <div>
-                  <div className="font-semibold text-amber-900 mb-1">SDG Blind Spots Detected</div>
+                  <div className="font-semibold text-amber-900 mb-1">Low Engagement SDGs (EDI &lt; 30)</div>
                   <div className="text-sm text-amber-800">
-                    {insights.underReported.length} SDG{insights.underReported.length > 1 ? 's' : ''} with &lt;40% coverage: {' '}
+                    {insights.underReported.length} SDG{insights.underReported.length > 1 ? 's' : ''}: {' '}
                     {insights.underReported.map(s => s.name).join(', ')}
                   </div>
                 </div>
@@ -308,7 +289,7 @@ export function SDGCoverageAnalysis() {
               className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="All">All Years</option>
-              <option value="2018-2020">2018-2020 (Pre-COVID)</option>
+              <option value="2016-2019">2016-2019 (Pre-COVID)</option>
               <option value="2020-2021">2020-2021 (COVID)</option>
               <option value="2022-2025">2022-2025 (Post-COVID)</option>
             </select>
@@ -340,14 +321,14 @@ export function SDGCoverageAnalysis() {
 
         {/* Main Visualizations */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-          {/* Overall SDG Coverage Bar Chart */}
+          {/* EDI Bar Chart */}
           <div className="lg:col-span-1 bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6">
             <h3 className="text-lg font-semibold text-slate-900 mb-4">
-              SDG Coverage Distribution
+              Engagement Depth Index
             </h3>
             <ResponsiveContainer width="100%" height={600}>
               <BarChart
-                data={sdgCoverageStats}
+                data={sdgEDIStats}
                 layout="vertical"
                 margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
               >
@@ -356,7 +337,7 @@ export function SDGCoverageAnalysis() {
                 <YAxis
                   type="category"
                   dataKey="name"
-                  width={100}
+                  width={180}
                   tick={{ fontSize: 11 }}
                 />
                 <Tooltip
@@ -365,13 +346,16 @@ export function SDGCoverageAnalysis() {
                     border: '1px solid #e2e8f0',
                     borderRadius: '8px'
                   }}
-                  formatter={(value: any) => [`${value}%`, 'Avg Coverage']}
+                  formatter={(value: any) => [
+                    `EDI: ${value}`,
+                    'Engagement Depth'
+                  ]}
                 />
-                <Bar dataKey="avgCoverage" radius={[0, 4, 4, 0]}>
-                  {sdgCoverageStats.map((entry, index) => (
+                <Bar dataKey="edi" radius={[0, 4, 4, 0]}>
+                  {sdgEDIStats.map((entry, index) => (
                     <Cell
                       key={`cell-${index}`}
-                      fill={getHeatmapColor(entry.avgCoverage)}
+                      fill={getEDIColor(entry.edi)}
                       fillOpacity={hoveredBar !== null && hoveredBar !== index ? 0.3 : 1}
                       onMouseEnter={() => setHoveredBar(index)}
                       onMouseLeave={() => setHoveredBar(null)}
@@ -388,30 +372,30 @@ export function SDGCoverageAnalysis() {
             {view === 'heatmap' ? (
               <>
                 <h3 className="text-lg font-semibold text-slate-900 mb-4">
-                  SDG Coverage Heatmap by Region
+                  Engagement Depth Heatmap by Region
                 </h3>
                 <div className="mb-4">
                   <div className="flex items-center gap-4 text-xs text-slate-600">
-                    <span>Coverage:</span>
+                    <span>EDI:</span>
                     <div className="flex items-center gap-2">
                       <div className="w-4 h-4 rounded" style={{ backgroundColor: '#ef4444' }}></div>
-                      <span>&lt;20% Critical gap</span>
+                      <span>&lt;20 Minimal</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="w-4 h-4 rounded" style={{ backgroundColor: '#f59e0b' }}></div>
-                      <span>20-35% Under-reported</span>
+                      <span>20-35 Low</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="w-4 h-4 rounded" style={{ backgroundColor: '#fbbf24' }}></div>
-                      <span>35-50% Moderate</span>
+                      <span>35-50 Moderate</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="w-4 h-4 rounded" style={{ backgroundColor: '#10b981' }}></div>
-                      <span>50-75% Well covered</span>
+                      <span>50-70 Strong</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="w-4 h-4 rounded" style={{ backgroundColor: '#059669' }}></div>
-                      <span>≥75% Strong focus</span>
+                      <span>≥70 Dominant</span>
                     </div>
                   </div>
                 </div>
@@ -443,22 +427,22 @@ export function SDGCoverageAnalysis() {
                             const dataPoint = heatmapData.find(
                               d => d.region === region && d.sdg === sdg.id
                             );
-                            const coverage = dataPoint?.avgCoverage || 0;
+                            const edi = dataPoint?.edi || 0;
                             return (
                               <td
                                 key={`${region}-${sdg.id}`}
                                 className="border border-slate-200 p-2 text-center text-sm font-medium text-white cursor-pointer transition-opacity duration-150"
                                 style={{
-                                  backgroundColor: getHeatmapColor(coverage),
+                                  backgroundColor: getEDIColor(edi),
                                   opacity: hoveredCell
                                     ? (hoveredCell.region === region || hoveredCell.sdg === sdg.id ? 1 : 0.4)
                                     : 1,
                                 }}
-                                title={`${sdg.fullName}: ${coverage}%`}
+                                title={`${sdg.fullName}: EDI ${edi}`}
                                 onMouseEnter={() => setHoveredCell({ region, sdg: sdg.id })}
                                 onMouseLeave={() => setHoveredCell(null)}
                               >
-                                {coverage}%
+                                {edi}
                               </td>
                             );
                           })}
@@ -471,10 +455,10 @@ export function SDGCoverageAnalysis() {
             ) : (
               <>
                 <h3 className="text-lg font-semibold text-slate-900 mb-4">
-                  SDG Coverage Trends Over Time
+                  Engagement Depth Trends Over Time
                 </h3>
                 <p className="text-sm text-slate-600 mb-4">
-                  Top 5 most reported and bottom 3 least reported SDGs
+                  Top 5 deepest and bottom 3 shallowest SDGs
                 </p>
                 <ResponsiveContainer width="100%" height={550}>
                   <LineChart
@@ -482,14 +466,8 @@ export function SDGCoverageAnalysis() {
                     margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                    <XAxis
-                      dataKey="year"
-                      stroke="#64748b"
-                    />
-                    <YAxis
-                      domain={[0, 100]}
-                      stroke="#64748b"
-                    />
+                    <XAxis dataKey="year" stroke="#64748b" />
+                    <YAxis stroke="#64748b" label={{ value: 'Engagement Depth', angle: -90, position: 'insideLeft' }} />
                     <Tooltip
                       contentStyle={{
                         backgroundColor: 'rgba(255, 255, 255, 0.95)',
@@ -498,30 +476,28 @@ export function SDGCoverageAnalysis() {
                       }}
                     />
                     <Legend />
-                    {/* Top 5 SDGs */}
-                    {sdgCoverageStats.slice(0, 5).map((sdg, idx) => {
+                    {sdgEDIStats.slice(0, 5).map((sdg, idx) => {
                       const colors = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981'];
                       return (
                         <Line
                           key={sdg.sdg}
                           type="monotone"
                           dataKey={`SDG${sdg.sdg}`}
-                          name={`SDG ${sdg.sdg}`}
+                          name={`SDG ${sdg.sdg} - ${getSDGName(sdg.sdg)}`}
                           stroke={colors[idx]}
                           strokeWidth={2}
                           dot={{ r: 4 }}
                         />
                       );
                     })}
-                    {/* Bottom 3 SDGs with dashed lines */}
-                    {sdgCoverageStats.slice(-3).map((sdg, idx) => {
+                    {sdgEDIStats.slice(-3).map((sdg, idx) => {
                       const colors = ['#ef4444', '#dc2626', '#991b1b'];
                       return (
                         <Line
                           key={sdg.sdg}
                           type="monotone"
                           dataKey={`SDG${sdg.sdg}`}
-                          name={`SDG ${sdg.sdg}`}
+                          name={`SDG ${sdg.sdg} - ${getSDGName(sdg.sdg)}`}
                           stroke={colors[idx]}
                           strokeWidth={2}
                           strokeDasharray="5 5"
