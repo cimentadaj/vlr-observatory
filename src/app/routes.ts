@@ -1,4 +1,4 @@
-import { createBrowserRouter } from 'react-router';
+import { createHashRouter } from 'react-router';
 import { Root } from '@/app/components/Root';
 import { Overview } from '@/app/components/Overview';
 import { SDGCoverageAnalysis } from '@/app/components/SDGCoverageAnalysis';
@@ -6,7 +6,12 @@ import { PolicyRecommendationSynthesis } from '@/app/components/PolicyRecommenda
 import { ChallengesBarriersAnalysis } from '@/app/components/ChallengesBarriersAnalysis';
 import { CommitmentStatementsAnalysis } from '@/app/components/CommitmentStatementsAnalysis';
 
-export const router = createBrowserRouter([
+// HashRouter is used because the app is served as a subdirectory of a
+// custom-domain GitHub Pages site (nexusgovernance.eu/vlr-observatory/), and
+// GitHub Pages custom-domain sites only serve the root-level 404.html — a
+// subdirectory SPA fallback won't work. Hash-based routes (e.g.
+// /vlr-observatory/#/sdg-coverage) need no server-side routing.
+export const router = createHashRouter([
   {
     path: '/',
     Component: Root,
@@ -18,4 +23,4 @@ export const router = createBrowserRouter([
       { path: 'commitment-statements', Component: CommitmentStatementsAnalysis },
     ],
   },
-], { basename: import.meta.env.BASE_URL.replace(/\/$/, '') });
+]);
