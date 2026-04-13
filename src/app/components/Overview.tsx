@@ -23,7 +23,7 @@ import {
   AlertTriangle,
   Target,
 } from 'lucide-react';
-import { REGIONS, CHALLENGE_CATEGORIES, getSDGName } from './data/constants';
+import { REGIONS, CHALLENGE_CATEGORIES, POLICY_CATEGORIES, COMMITMENT_CATEGORIES, getSDGName } from './data/constants';
 import metadataRaw from '@/data/generated/metadata.json';
 import coverageRaw from '@/data/generated/sdg-coverage.json';
 import policyRaw from '@/data/generated/policy-distribution.json';
@@ -50,6 +50,119 @@ const challengeIdToName: Record<string, string> = Object.fromEntries(
 const challengeIdToColor: Record<string, string> = Object.fromEntries(
   CHALLENGE_CATEGORIES.map(c => [c.id, c.color])
 );
+const policyIdToName: Record<string, string> = Object.fromEntries(
+  POLICY_CATEGORIES.map(c => [c.id, c.name])
+);
+const policyIdToColor: Record<string, string> = Object.fromEntries(
+  POLICY_CATEGORIES.map(c => [c.id, c.color])
+);
+const commitmentIdToName: Record<string, string> = Object.fromEntries(
+  COMMITMENT_CATEGORIES.map(c => [c.id, c.name])
+);
+const commitmentIdToColor: Record<string, string> = Object.fromEntries(
+  COMMITMENT_CATEGORIES.map(c => [c.id, c.color])
+);
+
+// Catch-all category IDs that should be excluded from distinctiveness ranking
+const CATCH_ALL_CATEGORY_IDS = new Set([
+  'socioeconomic',
+  'other_challenge',
+  'other_policy',
+  'other_commitment',
+]);
+
+const MIN_REGION_PCT = 5; // category must be at least 5% of region's items
+const MIN_DEVIATION_PP = 3; // must over-index by at least 3pp
+
+type SignatureDimension = 'challenge' | 'policy' | 'commitment' | 'item_type';
+type Signature = {
+  region: string;
+  dimension: SignatureDimension;
+  categoryId: string;
+  categoryName: string;
+  regionPct: number;
+  globalPct: number;
+  deviationPp: number;
+  color: string;
+  shortLabel: string;
+};
+
+// Compute a region's total items across all item types, for small-N transparency
+function regionItemCounts(region: string) {
+  const policy = policyData.filter(d => d.region === region).reduce((s, d) => s + d.count, 0);
+  const challenge = challengeData.filter(d => d.region === region).reduce((s, d) => s + d.count, 0);
+  const commitment = commitmentData.filter(d => d.region === region).reduce((s, d) => s + d.count, 0);
+  return { policy, challenge, commitment, total: policy + challenge + commitment };
+}
+
+// Distinctiveness for a category-mix dimension (challenges/policies/commitments)
+function categoryMixCandidates(
+  dimension: SignatureDimension,
+  regionData: DistItem[],
+  globalData: DistItem[],
+  idToName: Record<string, string>,
+  idToColor: Record<string, string>,
+): Omit<Signature, 'region' | 'shortLabel'>[] {
+  const regionTotal = regionData.reduce((s, d) => s + d.count, 0);
+  const globalTotal = globalData.reduce((s, d) => s + d.count, 0);
+  if (regionTotal === 0 || globalTotal === 0) return [];
+
+  const regionByCat: Record<string, number> = {};
+  const globalByCat: Record<string, number> = {};
+  for (const d of regionData) regionByCat[d.categoryId] = (regionByCat[d.categoryId] || 0) + d.count;
+  for (const d of globalData) globalByCat[d.categoryId] = (globalByCat[d.categoryId] || 0) + d.count;
+
+  const candidates: Omit<Signature, 'region' | 'shortLabel'>[] = [];
+  for (const catId of Object.keys(regionByCat)) {
+    if (CATCH_ALL_CATEGORY_IDS.has(catId)) continue;
+    const regionPct = (regionByCat[catId] / regionTotal) * 100;
+    const globalPct = ((globalByCat[catId] || 0) / globalTotal) * 100;
+    const deviationPp = regionPct - globalPct;
+    if (regionPct < MIN_REGION_PCT) continue;
+    if (deviationPp < MIN_DEVIATION_PP) continue;
+    candidates.push({
+      dimension,
+      categoryId: catId,
+      categoryName: idToName[catId] || catId,
+      regionPct: Math.round(regionPct * 10) / 10,
+      globalPct: Math.round(globalPct * 10) / 10,
+      deviationPp: Math.round(deviationPp * 10) / 10,
+      color: idToColor[catId] || '#94a3b8',
+    });
+  }
+  return candidates;
+}
+
+// Generate a short, human-friendly label for a signature
+function shortLabelFor(sig: Omit<Signature, 'region' | 'shortLabel'>): string {
+  if (sig.dimension === 'item_type') {
+    const labels: Record<string, string> = {
+      policy_share: 'Policy-heavy reporting',
+      challenge_share: 'Challenge-heavy reporting',
+      commitment_share: 'Commitment-heavy reporting',
+    };
+    return labels[sig.categoryId] || sig.categoryName;
+  }
+  // Map common category IDs to concise labels
+  const shortLabels: Record<string, string> = {
+    fiscal_financial: 'Fiscal-constrained',
+    external_shocks: 'External shock exposed',
+    voluntary_partnership: 'Partnership-driven policy',
+    strategic_planning: 'Strategy-led policy',
+    public_investment: 'Investment-led policy',
+    regulation_standards: 'Regulation-led policy',
+    data_monitoring: 'Data & monitoring gaps',
+    political_will: 'Political will risks',
+    partnership_collaboration: 'Partnership commitments',
+    capital_investment: 'Infrastructure commitments',
+    regulatory_reform: 'Regulatory reform commitments',
+    target_goal: 'Quantitative target setting',
+    programme_service: 'Programme launch focus',
+    institutional_capacity: 'Institution building',
+    strategy_plan: 'Plan-making focus',
+  };
+  return shortLabels[sig.categoryId] || sig.categoryName;
+}
 
 export function Overview() {
   // ── Pipeline Stats ──
@@ -73,29 +186,102 @@ export function Overview() {
     };
   }, []);
 
-  // ── Regional Challenge Profiles ──
-  const regionalProfiles = useMemo(() => {
-    return REGIONS.map(region => {
-      const regionItems = challengeData.filter(d => d.region === region);
-      const total = regionItems.reduce((s, d) => s + d.count, 0);
-      if (total === 0) return { region, dominant: 'N/A', dominantId: '', pct: 0 };
+  // ── Regional Signatures (distinctiveness-based) ──
+  // For each region, find the feature where it most over-indexes vs the global baseline
+  // across four dimensions: challenge mix, policy mix, commitment mix, item-type composition.
+  // Catch-all buckets (Socioeconomic, Other) are excluded because the classifier treats them
+  // as dumping grounds. Regions with no candidate passing floors get a "no distinctive feature" card.
+  const regionalSignatures = useMemo(() => {
+    // Global item-type totals (used for item-type dimension)
+    const globalPolicy = policyData.reduce((s, d) => s + d.count, 0);
+    const globalChallenge = challengeData.reduce((s, d) => s + d.count, 0);
+    const globalCommitment = commitmentData.reduce((s, d) => s + d.count, 0);
+    const globalGrandTotal = globalPolicy + globalChallenge + globalCommitment;
+    const globalPolicyShare = (globalPolicy / globalGrandTotal) * 100;
+    const globalChallengeShare = (globalChallenge / globalGrandTotal) * 100;
+    const globalCommitmentShare = (globalCommitment / globalGrandTotal) * 100;
 
-      const byCat: Record<string, number> = {};
-      for (const item of regionItems) {
-        byCat[item.categoryId] = (byCat[item.categoryId] || 0) + item.count;
+    return REGIONS.map(region => {
+      const counts = regionItemCounts(region);
+      if (counts.total === 0) {
+        return {
+          region,
+          signature: null,
+          counts,
+        };
       }
 
-      const [dominantId, dominantCount] = Object.entries(byCat)
-        .filter(([k]) => k !== 'other_challenge')
-        .sort((a, b) => b[1] - a[1])[0] || ['', 0];
+      const candidates: Omit<Signature, 'region' | 'shortLabel'>[] = [];
 
-      return {
+      // Dimension 1: Challenge category mix
+      candidates.push(
+        ...categoryMixCandidates(
+          'challenge',
+          challengeData.filter(d => d.region === region),
+          challengeData,
+          challengeIdToName,
+          challengeIdToColor,
+        ),
+      );
+      // Dimension 2: Policy category mix
+      candidates.push(
+        ...categoryMixCandidates(
+          'policy',
+          policyData.filter(d => d.region === region),
+          policyData,
+          policyIdToName,
+          policyIdToColor,
+        ),
+      );
+      // Dimension 3: Commitment category mix
+      candidates.push(
+        ...categoryMixCandidates(
+          'commitment',
+          commitmentData.filter(d => d.region === region),
+          commitmentData,
+          commitmentIdToName,
+          commitmentIdToColor,
+        ),
+      );
+
+      // Dimension 4: Item-type composition
+      const regionPolicyShare = (counts.policy / counts.total) * 100;
+      const regionChallengeShare = (counts.challenge / counts.total) * 100;
+      const regionCommitmentShare = (counts.commitment / counts.total) * 100;
+      const itemTypeCandidates: Array<{ id: string; name: string; rShare: number; gShare: number }> = [
+        { id: 'policy_share', name: 'Policy share', rShare: regionPolicyShare, gShare: globalPolicyShare },
+        { id: 'challenge_share', name: 'Challenge share', rShare: regionChallengeShare, gShare: globalChallengeShare },
+        { id: 'commitment_share', name: 'Commitment share', rShare: regionCommitmentShare, gShare: globalCommitmentShare },
+      ];
+      for (const c of itemTypeCandidates) {
+        const deviationPp = c.rShare - c.gShare;
+        // Item-type uses same floors; region_pct floor is inherently satisfied (shares >= ~20% typically)
+        if (c.rShare < MIN_REGION_PCT) continue;
+        if (deviationPp < MIN_DEVIATION_PP) continue;
+        candidates.push({
+          dimension: 'item_type',
+          categoryId: c.id,
+          categoryName: c.name,
+          regionPct: Math.round(c.rShare * 10) / 10,
+          globalPct: Math.round(c.gShare * 10) / 10,
+          deviationPp: Math.round(deviationPp * 10) / 10,
+          color: '#64748b', // neutral slate for composition signatures
+        });
+      }
+
+      // Pick winner: max positive deviation
+      candidates.sort((a, b) => b.deviationPp - a.deviationPp);
+      const winner = candidates[0];
+      if (!winner) {
+        return { region, signature: null, counts };
+      }
+
+      const signature: Signature = {
         region,
-        dominant: challengeIdToName[dominantId] || dominantId,
-        dominantId,
-        pct: Math.round((dominantCount / total) * 1000) / 10,
-        color: challengeIdToColor[dominantId] || '#94a3b8',
+        ...winner,
+        shortLabel: shortLabelFor(winner),
       };
+      return { region, signature, counts };
     });
   }, []);
 
@@ -259,22 +445,56 @@ export function Overview() {
           </div>
         </div>
 
-        {/* Regional Challenge Profiles */}
+        {/* Regional Signatures */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6 mb-6">
-          <h2 className="text-lg font-semibold text-slate-900 mb-1">Regional Challenge Profiles</h2>
-          <p className="text-sm text-slate-500 mb-4">Each region's dominant challenge — the type of barrier cities cite most frequently</p>
+          <h2 className="text-lg font-semibold text-slate-900 mb-1">Regional Signatures</h2>
+          <p className="text-sm text-slate-500 mb-4">
+            What makes each region distinct — the feature where it most over-indexes compared to the global baseline across challenges, policies, commitments, and item composition. "Socioeconomic" and "Other" buckets are excluded because the classifier treats them as catch-alls.
+          </p>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-            {regionalProfiles.map(rp => (
-              <div key={rp.region} className="rounded-xl border border-slate-200 p-4">
-                <div className="text-sm font-semibold text-slate-900 mb-2">{rp.region}</div>
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="w-3 h-3 rounded-sm flex-shrink-0" style={{ backgroundColor: rp.color }} />
-                  <span className="text-sm text-slate-700 leading-tight">{rp.dominant}</span>
+            {regionalSignatures.map(rs => {
+              const sig = rs.signature;
+              const dimensionLabel: Record<SignatureDimension, string> = {
+                challenge: 'Challenge mix',
+                policy: 'Policy mix',
+                commitment: 'Commitment mix',
+                item_type: 'Item composition',
+              };
+              return (
+                <div key={rs.region} className="rounded-xl border border-slate-200 p-4">
+                  <div className="flex items-baseline justify-between mb-2">
+                    <div className="text-sm font-semibold text-slate-900">{rs.region}</div>
+                    <div className="text-[10px] text-slate-400 tabular-nums">{rs.counts.total.toLocaleString()} items</div>
+                  </div>
+                  {sig ? (
+                    <>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="w-3 h-3 rounded-sm flex-shrink-0" style={{ backgroundColor: sig.color }} />
+                        <span className="text-sm font-medium text-slate-800 leading-tight">{sig.shortLabel}</span>
+                      </div>
+                      <div className="text-xs text-slate-600 leading-snug">{sig.categoryName}</div>
+                      <div className="text-xs text-slate-500 tabular-nums mt-1">
+                        {sig.regionPct}% <span className="text-slate-400">vs {sig.globalPct}% global</span>{' '}
+                        <span className="font-medium text-emerald-700">+{sig.deviationPp}pp</span>
+                      </div>
+                      <div className="text-[10px] text-slate-400 mt-1">{dimensionLabel[sig.dimension]}</div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="w-3 h-3 rounded-sm flex-shrink-0 bg-slate-300" />
+                        <span className="text-sm font-medium text-slate-500 leading-tight">No distinctive feature</span>
+                      </div>
+                      <div className="text-xs text-slate-500 leading-snug">Follows global patterns closely</div>
+                    </>
+                  )}
                 </div>
-                <div className="text-xs text-slate-500 tabular-nums">{rp.pct}% of challenges</div>
-              </div>
-            ))}
+              );
+            })}
           </div>
+          <p className="text-[11px] text-slate-400 mt-4 leading-snug">
+            Comparison uses absolute percentage-point deviation from the global baseline across four dimensions. Item-type composition has only 3 classes vs ~11 for category mixes, so item-type deviations are structurally larger and not strictly comparable across dimensions. A signature requires the category to be at least 5% of the region's items and deviate at least 3pp above the global baseline.
+          </p>
         </div>
 
         {/* SDG Highlights */}

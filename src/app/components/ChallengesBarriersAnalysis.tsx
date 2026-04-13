@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 // recharts removed — slope chart is pure SVG
-import { Network, Shield, Database, DollarSign, Clock, Scale, BookOpen, Layers, Puzzle, Flag, MessageCircle, Zap, HeartHandshake, MoreHorizontal } from 'lucide-react';
+import { Network, Shield, Database, DollarSign, Clock, Scale, BookOpen, Layers, Puzzle, Flag, MessageCircle, Zap, HeartHandshake, MoreHorizontal, Info } from 'lucide-react';
 import { Tooltip as UITooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 import type { LucideIcon } from 'lucide-react';
 import { REGIONS, CHALLENGE_CATEGORIES, ChallengeId, getSDGName } from './data/constants';
@@ -86,25 +86,47 @@ export function ChallengesBarriersAnalysis() {
   const [hoveredSDG, setHoveredSDG] = useState<number | null>(null);
   const [hoveredSlope, setHoveredSlope] = useState<string | null>(null);
 
-  // Dynamic threshold: mean + 0.5*stdev for the selected category
-  // This ensures ~30-40% of SDGs are connected regardless of category baseline
+  // Top-5 rule: the SDGs where the selected challenge represents the largest share
+  // of that SDG's total reported barriers. Ties at the cutoff are included (within 0.5pp).
   const connectedSDGs = useMemo(() => {
-    const values = sdgChallengeData.map(d => {
-      if (selectedRegion === 'All') {
-        return d.challenges[selectedChallenge] || 0;
-      } else {
-        return d.regionalBreakdown[selectedRegion]?.[selectedChallenge] || 0;
-      }
-    });
+    const withValues = sdgChallengeData.map(d => ({
+      sdg: d.sdg,
+      value: selectedRegion === 'All'
+        ? (d.challenges[selectedChallenge] || 0)
+        : (d.regionalBreakdown[selectedRegion]?.[selectedChallenge] || 0),
+    })).sort((a, b) => b.value - a.value);
 
-    const mean = values.reduce((a, b) => a + b, 0) / values.length;
-    const stdev = Math.sqrt(values.reduce((sum, v) => sum + (v - mean) ** 2, 0) / values.length);
-    const dynamicThreshold = mean + 0.5 * stdev;
-
-    return sdgChallengeData
-      .filter((_, i) => values[i] > dynamicThreshold)
+    const top5Cutoff = withValues[4]?.value ?? 0;
+    // include ties within 0.5pp of the 5th-ranked value, but only if > 0
+    return withValues
+      .filter(d => d.value > 0 && d.value >= top5Cutoff - 0.5)
+      .slice(0, 7) // hard cap in case of many ties
       .map(d => d.sdg);
   }, [selectedChallenge, selectedRegion]);
+
+  // Numeric summary for the methodology footer
+  const connectedStats = useMemo(() => {
+    const values = connectedSDGs.map(sdg => {
+      const entry = sdgChallengeData.find(d => d.sdg === sdg);
+      if (!entry) return 0;
+      return selectedRegion === 'All'
+        ? (entry.challenges[selectedChallenge] || 0)
+        : (entry.regionalBreakdown[selectedRegion]?.[selectedChallenge] || 0);
+    });
+    const allValues = sdgChallengeData.map(d =>
+      selectedRegion === 'All'
+        ? (d.challenges[selectedChallenge] || 0)
+        : (d.regionalBreakdown[selectedRegion]?.[selectedChallenge] || 0),
+    );
+    const globalAvg = allValues.length > 0
+      ? Math.round((allValues.reduce((s, v) => s + v, 0) / allValues.length) * 10) / 10
+      : 0;
+    return {
+      min: values.length > 0 ? Math.min(...values) : 0,
+      max: values.length > 0 ? Math.max(...values) : 0,
+      globalAvg,
+    };
+  }, [connectedSDGs, selectedChallenge, selectedRegion]);
 
   // Max value for the selected challenge across all SDGs (for node normalization)
   const maxChallengeValue = useMemo(() => {
@@ -208,13 +230,28 @@ export function ChallengesBarriersAnalysis() {
 
         {/* Network Visualization */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6 mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="text-lg font-semibold text-slate-900">
-                Which SDGs Face This Challenge Together? — {selectedChallengeDetails?.name}
-              </h3>
+          <div className="flex items-start justify-between mb-4 gap-4">
+            <div className="flex-1">
+              <div className="flex items-center gap-2">
+                <h3 className="text-lg font-semibold text-slate-900">
+                  Top 5 Most Affected SDGs — {selectedChallengeDetails?.name}
+                </h3>
+                <UITooltip>
+                  <TooltipTrigger asChild>
+                    <button type="button" className="text-slate-400 hover:text-slate-600" aria-label="How is this computed?">
+                      <Info className="w-4 h-4" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-sm">
+                    <p className="font-medium">How is this computed?</p>
+                    <p className="mt-1 opacity-90">
+                      We rank all 17 SDGs by how much of their reported barriers fall into the selected challenge category ("intensity"), then show the top 5. Ties within 0.5pp of the 5th-ranked value are included. Intensity = this challenge's share of all challenges reported for that SDG.
+                    </p>
+                  </TooltipContent>
+                </UITooltip>
+              </div>
               <p className="text-sm text-slate-600 mt-1">
-                SDGs connected by shared challenge barriers
+                Showing the 5 SDGs where this challenge represents the largest share of their reported barriers. Intensity = this challenge's % of all challenges reported for that SDG.
               </p>
             </div>
           </div>
@@ -357,11 +394,12 @@ export function ChallengesBarriersAnalysis() {
 
             <div className="mt-4 p-4 bg-blue-50 border border-blue-200 border-l-4 border-l-blue-500 rounded-lg">
               <div className="text-sm text-blue-800">
-                <strong>Network Insight:</strong> {connectedSDGs.length} SDGs share notable intensity of{' '}
-                <strong>{selectedChallengeDetails?.name}</strong> challenges
-                {selectedRegion !== 'All' && ` in ${selectedRegion}`}.
-                This indicates a {connectedSDGs.length > 10 ? 'universal structural bottleneck' : 'SDG-specific barrier pattern'} requiring
-                {connectedSDGs.length > 10 ? ' system-level interventions.' : ' targeted solutions.'}
+                <strong>Network Insight:</strong> Across the {connectedSDGs.length} most affected SDGs
+                {selectedRegion !== 'All' && ` in ${selectedRegion}`},{' '}
+                <strong>{selectedChallengeDetails?.name}</strong> accounts for{' '}
+                <strong className="tabular-nums">{connectedStats.min}%–{connectedStats.max}%</strong>{' '}
+                of their reported barriers, vs a global average of{' '}
+                <strong className="tabular-nums">{connectedStats.globalAvg}%</strong> across all SDGs.
               </div>
             </div>
           </div>
