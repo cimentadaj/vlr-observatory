@@ -87,20 +87,19 @@ export function ChallengesBarriersAnalysis() {
   const [hoveredSlope, setHoveredSlope] = useState<string | null>(null);
 
   // Top-5 rule: the SDGs where the selected challenge represents the largest share
-  // of that SDG's total reported barriers. Ties at the cutoff are included (within 0.5pp).
+  // of that SDG's total reported barriers. Always exactly 5 — or fewer only when
+  // fewer than 5 SDGs have any reported intensity for this challenge in this region.
   const connectedSDGs = useMemo(() => {
-    const withValues = sdgChallengeData.map(d => ({
-      sdg: d.sdg,
-      value: selectedRegion === 'All'
-        ? (d.challenges[selectedChallenge] || 0)
-        : (d.regionalBreakdown[selectedRegion]?.[selectedChallenge] || 0),
-    })).sort((a, b) => b.value - a.value);
-
-    const top5Cutoff = withValues[4]?.value ?? 0;
-    // include ties within 0.5pp of the 5th-ranked value, but only if > 0
-    return withValues
-      .filter(d => d.value > 0 && d.value >= top5Cutoff - 0.5)
-      .slice(0, 7) // hard cap in case of many ties
+    return sdgChallengeData
+      .map(d => ({
+        sdg: d.sdg,
+        value: selectedRegion === 'All'
+          ? (d.challenges[selectedChallenge] || 0)
+          : (d.regionalBreakdown[selectedRegion]?.[selectedChallenge] || 0),
+      }))
+      .filter(d => d.value > 0)
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 5)
       .map(d => d.sdg);
   }, [selectedChallenge, selectedRegion]);
 
@@ -234,7 +233,7 @@ export function ChallengesBarriersAnalysis() {
             <div className="flex-1">
               <div className="flex items-center gap-2">
                 <h3 className="text-lg font-semibold text-slate-900">
-                  Top 5 Most Affected SDGs — {selectedChallengeDetails?.name}
+                  Top {connectedSDGs.length} Most Affected SDG{connectedSDGs.length === 1 ? '' : 's'} — {selectedChallengeDetails?.name}
                 </h3>
                 <UITooltip>
                   <TooltipTrigger asChild>
@@ -245,13 +244,15 @@ export function ChallengesBarriersAnalysis() {
                   <TooltipContent className="max-w-sm">
                     <p className="font-medium">How is this computed?</p>
                     <p className="mt-1 opacity-90">
-                      We rank all 17 SDGs by how much of their reported barriers fall into the selected challenge category ("intensity"), then show the top 5. Ties within 0.5pp of the 5th-ranked value are included. Intensity = this challenge's share of all challenges reported for that SDG.
+                      We rank all 17 SDGs by how much of their reported barriers fall into the selected challenge category ("intensity") and show the top 5. Fewer than 5 are shown only when fewer SDGs have any reported intensity for this challenge in the selected region. Intensity = this challenge's share of all challenges reported for that SDG.
                     </p>
                   </TooltipContent>
                 </UITooltip>
               </div>
               <p className="text-sm text-slate-600 mt-1">
-                Showing the 5 SDGs where this challenge represents the largest share of their reported barriers. Intensity = this challenge's % of all challenges reported for that SDG.
+                {connectedSDGs.length === 0
+                  ? 'No SDGs report this challenge in the selected region.'
+                  : `Showing the ${connectedSDGs.length} SDG${connectedSDGs.length === 1 ? '' : 's'} where this challenge represents the largest share of their reported barriers. Intensity = this challenge's % of all challenges reported for that SDG.`}
               </p>
             </div>
           </div>
@@ -394,12 +395,26 @@ export function ChallengesBarriersAnalysis() {
 
             <div className="mt-4 p-4 bg-blue-50 border border-blue-200 border-l-4 border-l-blue-500 rounded-lg">
               <div className="text-sm text-blue-800">
-                <strong>Network Insight:</strong> Across the {connectedSDGs.length} most affected SDGs
-                {selectedRegion !== 'All' && ` in ${selectedRegion}`},{' '}
-                <strong>{selectedChallengeDetails?.name}</strong> accounts for{' '}
-                <strong className="tabular-nums">{connectedStats.min}%–{connectedStats.max}%</strong>{' '}
-                of their reported barriers, vs a global average of{' '}
-                <strong className="tabular-nums">{connectedStats.globalAvg}%</strong> across all SDGs.
+                {connectedSDGs.length === 0 ? (
+                  <>
+                    <strong>Network Insight:</strong> No SDGs report{' '}
+                    <strong>{selectedChallengeDetails?.name}</strong> as a barrier
+                    {selectedRegion !== 'All' && ` in ${selectedRegion}`}.
+                  </>
+                ) : (
+                  <>
+                    <strong>Network Insight:</strong> Across the {connectedSDGs.length} most affected SDG{connectedSDGs.length === 1 ? '' : 's'}
+                    {selectedRegion !== 'All' && ` in ${selectedRegion}`},{' '}
+                    <strong>{selectedChallengeDetails?.name}</strong> accounts for{' '}
+                    <strong className="tabular-nums">
+                      {connectedStats.min === connectedStats.max
+                        ? `${connectedStats.min}%`
+                        : `${connectedStats.min}%–${connectedStats.max}%`}
+                    </strong>{' '}
+                    of their reported barriers, vs a global average of{' '}
+                    <strong className="tabular-nums">{connectedStats.globalAvg}%</strong> across all SDGs.
+                  </>
+                )}
               </div>
             </div>
           </div>
