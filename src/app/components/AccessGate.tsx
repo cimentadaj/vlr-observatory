@@ -237,16 +237,18 @@ export function AccessGate() {
               htmlFor="consent_marketing"
               className="text-xs leading-relaxed text-slate-600 font-normal cursor-pointer"
             >
-              (Optional) I agree to receive occasional updates from Nexus Governance about
-              the Compendium, methodology revisions, and related work. I can
-              withdraw at any time by writing to{' '}
-              <a
-                href="mailto:hello@nexusgovernance.eu"
-                className="text-blue-700 underline-offset-2 hover:underline"
-              >
-                hello@nexusgovernance.eu
-              </a>
-              .
+              <span>
+                (Optional) I agree to receive occasional updates from Nexus Governance about
+                the Compendium, methodology revisions, and related work. I can
+                withdraw at any time by writing to{' '}
+                <a
+                  href="mailto:hello@nexusgovernance.eu"
+                  className="text-blue-700 underline-offset-2 hover:underline"
+                >
+                  hello@nexusgovernance.eu
+                </a>
+                .
+              </span>
             </Label>
           </div>
 
