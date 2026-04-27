@@ -40,6 +40,7 @@ export function AccessGate() {
     const full_name = (form.elements.namedItem('full_name') as HTMLInputElement).value.trim();
     const email = (form.elements.namedItem('email') as HTMLInputElement).value.trim();
     const organisation = (form.elements.namedItem('organisation') as HTMLInputElement).value.trim();
+    const website = (form.elements.namedItem('website') as HTMLInputElement).value;
 
     const next: { [k: string]: string } = {};
     if (!full_name) next.full_name = 'Required.';
@@ -55,6 +56,7 @@ export function AccessGate() {
       organisation,
       consent_marketing: consent,
       source: 'observatory',
+      website,
     };
 
     const SIGNUP_API_URL = 'https://nexus-api-qr3qz.ondigitalocean.app';
@@ -110,6 +112,18 @@ export function AccessGate() {
         </p>
 
         <form onSubmit={onSubmit} noValidate className="mt-7 space-y-4">
+          {/* Honeypot: real users never fill this. Inline-styled instead of
+              `display: none` so headless browsers that ignore display rules
+              still render it as a normal input and may auto-fill it. */}
+          <input
+            type="text"
+            name="website"
+            tabIndex={-1}
+            autoComplete="off"
+            aria-hidden="true"
+            defaultValue=""
+            style={{ position: 'absolute', left: '-10000px', width: 1, height: 1, opacity: 0 }}
+          />
           <div className="space-y-1.5">
             <Label htmlFor="full_name" className="text-xs font-medium tracking-wide text-slate-700">
               Full name
